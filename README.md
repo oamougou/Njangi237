@@ -1,4 +1,4 @@
-# Njangi237 — App de recouvrement communautaire (tontines / cotisations)
+# Njangi237 - App de recouvrement communautaire (tontines / cotisations)
 
 MVP fonctionnel, 100% hors ligne, inspiré du même principe que ta PWA NetPartage.
 
@@ -18,7 +18,7 @@ MVP fonctionnel, 100% hors ligne, inspiré du même principe que ta PWA NetParta
 - Importer des membres directement depuis les contacts du téléphone (nom + numéro pré-remplis)
 - Exporter le suivi d'un cycle en CSV
 - Sauvegarder / restaurer toutes les données en JSON (backup manuel)
-- Toutes les données restent sur l'appareil (`localStorage`) — aucun serveur, aucune donnée envoyée en ligne
+- Toutes les données restent sur l'appareil (`localStorage`) - aucun serveur, aucune donnée envoyée en ligne
 
 ## Utilisation immédiate (sans hébergement)
 Tu peux ouvrir `index.html` directement dans le navigateur du téléphone (double-clic ou via une appli de gestion de fichiers) : l'app fonctionne intégralement. Seule limite : l'installation "Ajouter à l'écran d'accueil" avec icône dédiée et le cache hors-ligne du service worker demandent que les fichiers soient servis en `http(s)://`, pas en `file://` (limitation standard des navigateurs Android/iOS).
