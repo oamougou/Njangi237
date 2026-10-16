@@ -98,4 +98,15 @@ export interface Api {
   declarerPaiement(d: Declaration): Promise<void>;
   /** Temps réel : appelle `surChangement` à chaque modification des données de ces groupes ; renvoie la fonction d'arrêt. */
   abonner(groupIds: string[], surChangement: () => void): () => void;
+  // Tours et journal (lot 5)
+  ordonnerTours(groupId: string, ordre: string[]): Promise<void>;
+  /** Tirage côté serveur, inscrit au journal ; renvoie les noms dans le nouvel ordre. */
+  tirerAuSort(groupId: string): Promise<string[]>;
+  echangerTours(a: string, b: string): Promise<void>;
+  remplacerBeneficiaire(remiseId: string, membershipId: string): Promise<void>;
+  /** `ecart` = montant remis − montant attendu. */
+  enregistrerRemise(remiseId: string, montant: number, moyen: MoyenPaiement, reference: string | null): Promise<{ ecart: number }>;
+  nouveauTour(groupId: string): Promise<number>;
+  /** 50 entrées au plus, de la plus récente à la plus ancienne ; `avant` = identifiant de la dernière entrée déjà affichée. */
+  lireJournal(groupId: string, avant?: number): Promise<EntreeJournal[]>;
 }
