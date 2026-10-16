@@ -7,6 +7,7 @@ import { estimerTour } from "../../lib/tours";
 import type { Api, Declaration, Dette, Paiement } from "../../lib/types";
 import { useVue } from "../../lib/useVue";
 import { FormDeclaration, type SaisieDeclaration } from "./FormDeclaration";
+import { Avatar, Barre } from "../Decor";
 
 const ETAT_PAIEMENT: Record<Paiement["status"], string> = { declare: "En attente", valide: "Validé", conteste: "Contesté" };
 const MOIS = (d: Date) => d.toLocaleDateString("fr-FR", { month: "long", year: "numeric" });
@@ -66,7 +67,7 @@ export function EspaceMembre({ api, groupId, personId, stockage }: { api: Api; g
 
   return (
     <section>
-      <div className="ligne"><h2>{vue.groupe.name}</h2><a className="lien" href="#/">← Mes groupes</a></div>
+      <div className="ligne"><div className="titre-groupe"><Avatar id={vue.groupe.id} nom={vue.groupe.name} /><h2>{vue.groupe.name}</h2></div><a className="lien" href="#/">← Mes groupes</a></div>
       {horsLigne && <div className="alerte ligne" role="alert">
         <span>Hors ligne{le ? ` · données du ${dateCourte(le).slice(0, 5)} à ${new Date(le).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}` : ""}</span>
         <button className="btn petit" onClick={reessayer}>Réessayer</button></div>}
@@ -78,7 +79,7 @@ export function EspaceMembre({ api, groupId, personId, stockage }: { api: Api; g
           <button className="btn petit" onClick={() => { retirerDeFile(stockage, personId, e.declaration.id); rafraichir((n) => n + 1); }}>Compris</button>
         </div>))}
 
-      <section className="carte" role="region" aria-label="Cycle en cours">
+      <section className={`carte cycle${ouvert && etat ? ` etat-${etat.etat}` : ""}`} role="region" aria-label="Cycle en cours">
         {ouvert && etat ? <>
           <div className="ligne"><h3>{ouvert.label}</h3>{ouvert.due_date && <span className="note">avant le {dateCourte(ouvert.due_date)}</span>}</div>
           {etat.etat === "paye" && <p className="ok">Payé ✓</p>}
@@ -89,6 +90,7 @@ export function EspaceMembre({ api, groupId, personId, stockage }: { api: Api; g
           {etat.etat === "hors" && <p className="note">Vous avez rejoint le groupe après l'ouverture de ce cycle : rien à payer pour ce cycle.</p>}
           {remiseDuCycle.length > 0 && <p className="note">Bénéficiaire : {remiseDuCycle.map((r) => nomTour(r.membership_id)).join(", ")}</p>}
           {taux && <p className="note">Le groupe a collecté {fcfa(taux.collecte)} sur {fcfa(taux.attendu)} ({taux.attendu ? Math.round(taux.collecte * 100 / taux.attendu) : 0} %).</p>}
+          {taux && <Barre valeur={taux.attendu ? taux.collecte * 100 / taux.attendu : 0} libelle="Cagnotte du groupe" />}
           {(etat.etat === "a_payer" || etat.etat === "conteste") && !form &&
             <button className="btn principal" onClick={() => setForm({ cycleId: ouvert.id, titre: `Déclarer mon paiement · ${ouvert.label}`,
               montant: ouvert.amount_expected - etat.valide, detteId: null })}>Déclarer mon paiement</button>}

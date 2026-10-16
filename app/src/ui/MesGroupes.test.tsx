@@ -36,4 +36,11 @@ describe("Mes groupes", () => {
     expect(screen.getByText("En attente d'envoi")).toBeTruthy();
     expect(screen.queryByText(/À payer/)).toBeNull();
   });
+
+  it("salue la personne par son prénom", async () => {
+    const api = fauxApi();
+    api.mesGroupes.mockResolvedValue([]);
+    render(<MesGroupes api={api} personId="u1" stockage={stockageMemoire()} nom="cathy ngono" />);
+    expect(await screen.findByRole("heading", { name: "Bonjour Cathy 👋" })).toBeTruthy();
+  });
 });

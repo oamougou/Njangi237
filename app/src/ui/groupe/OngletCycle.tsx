@@ -8,6 +8,7 @@ import { messageRelance, prochaineRelance } from "../../lib/relances";
 import type { Api, Dette, Paiement, VueGroupe } from "../../lib/types";
 import { Confirmer } from "../Confirmer";
 import { Champ } from "../Champ";
+import { Barre } from "../Decor";
 
 /** L'identifiant est tiré à l'ouverture du formulaire : un nouvel essai après une coupure réseau ne crée pas de doublon. */
 type Saisie = { id: string; membreId: string; nom: string; cycleId: string; montant: string } | null;
@@ -80,6 +81,7 @@ export function OngletCycle({ api, vue, recharger }: { api: Api; vue: VueGroupe;
               <div><b>{bilan.taux} %</b><span>sur {fcfa(bilan.attendu)}</span></div>
               <div><b>{nbRetard}</b><span>en retard</span></div>
             </div>
+            <Barre valeur={bilan.taux} libelle="Cagnotte collectée" />
           </div>
 
           <ul className="liste">

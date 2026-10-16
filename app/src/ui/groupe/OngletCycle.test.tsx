@@ -15,6 +15,7 @@ describe("onglet Cycle", () => {
     expect(screen.getByText("Octobre 2026")).toBeTruthy();
     expect(screen.getByText("5 000 FCFA")).toBeTruthy();          // collecté
     expect(screen.getByText("25 %")).toBeTruthy();
+    expect(screen.getByRole("progressbar", { name: "Cagnotte collectée" }).getAttribute("aria-valuenow")).toBe("25");
     expect(ligne("Tina").textContent).toContain("Payé");
     expect(ligne("Alice").textContent).toContain("À valider");
     expect(ligne("Bob").textContent).toContain("En retard");

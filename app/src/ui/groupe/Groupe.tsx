@@ -5,6 +5,7 @@ import { dateCourte } from "../../lib/format";
 import { EspaceMembre } from "../membre/EspaceMembre";
 import { OngletCycle } from "./OngletCycle";
 import { OngletMembres } from "./OngletMembres";
+import { Avatar } from "../Decor";
 
 /** Espace d'un groupe : trésorier (onglets) ou membre. Mémoire locale, temps réel, lecture seule hors ligne. */
 export function Groupe({ api, id, onglet, personId, stockage }: {
@@ -25,7 +26,7 @@ export function Groupe({ api, id, onglet, personId, stockage }: {
   if (vue.role !== "tresorier") return <EspaceMembre api={api} groupId={id} personId={personId} stockage={stockage} />;
   return (
     <section>
-      <div className="ligne"><h2>{vue.groupe.name}</h2><a className="lien" href="#/">← Mes groupes</a></div>
+      <div className="ligne"><div className="titre-groupe"><Avatar id={vue.groupe.id} nom={vue.groupe.name} /><h2>{vue.groupe.name}</h2></div><a className="lien" href="#/">← Mes groupes</a></div>
       {bandeau}
       <nav className="onglets">
         <a href={`#/groupe/${id}`} className={onglet === "cycle" ? "actif" : ""}>Cycle</a>
