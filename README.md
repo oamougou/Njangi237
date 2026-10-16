@@ -40,6 +40,12 @@ Le service worker fonctionne « réseau d'abord » : une nouvelle version arrive
   cd db && npm install && npm test
   ```
 - Vérification après déploiement : exécuter `db/remote_smoke.sql` dans l'éditeur SQL (tout est annulé à la fin).
+- Fonction serveur `comptes` (invitations, nouveau PIN, connexion, changement de PIN, amorçage) : `supabase/functions/comptes`,
+  tests `npx -y deno@2.5.6 test`. Secrets requis : `NJANGI_POIVRE` (≥ 32 caractères, ne jamais le changer : il dérive les
+  mots de passe Auth des PIN) et `AMORCE_TELEPHONE`. Déployée sans vérification JWT (elle authentifie elle-même).
+- Application v2 : `app/` (`npm test`, `npm run build`), publiée sur https://v2.njangi237.pages.dev :
+  `npx wrangler pages deploy dist --project-name njangi237 --branch v2`. Configuration dans `app/.env` (voir `.env.example`).
+- Supabase Auth : inscriptions publiques fermées (les comptes ne naissent que par invitation ou amorçage), limite « sign-ins » relevée.
 - Spécification et plans : `docs/superpowers/`.
 
 ## Utilisation immédiate (sans hébergement)

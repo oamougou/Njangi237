@@ -80,7 +80,10 @@ export async function traiter(body: any, deps: Deps, jwt?: string): Promise<unkn
 
   if (action === "amorcer") {
     const phone = lirePhone(body.telephone);
-    if (!deps.telephoneAmorce || phone !== deps.telephoneAmorce) throw new ErreurMetier("Amorçage non autorisé", 403);
+    // Le secret peut avoir été saisi avec ou sans 237, avec des espaces : on le normalise comme tout numéro
+    let autorise: string | null = null;
+    try { autorise = deps.telephoneAmorce ? normaliserTelephone(deps.telephoneAmorce) : null; } catch { autorise = null; }
+    if (!autorise || phone !== autorise) throw new ErreurMetier("Amorçage non autorisé", 403);
     if (!pinValide(body.pin)) throw new ErreurMetier("Le PIN doit contenir 6 chiffres", 400);
     const motDePasseDerive = await mdp(deps, phone, body.pin);
     const id = await creerOuReprendre(phone, motDePasseDerive, deps);
