@@ -96,7 +96,7 @@ describe("onglet Cycle", () => {
     expect(api.ouvrirCycle).toHaveBeenCalledWith("g1", "Novembre 2026", null);
   });
 
-  it("dettes : encaissement en espèces de la dette entière", async () => {
+  it("dettes : encaissement en espèces de la dette entière, après confirmation", async () => {
     const vue = vueTest();
     vue.cycles = [{ ...vue.cycles[0], id: "c-sep", label: "Septembre 2026", status: "clos", closed_at: "2026-09-30T20:00:00Z" }, ...vue.cycles];
     vue.dettes = [{ id: "d-bob", membership_id: "m-bob", cycle_id: "c-sep", amount: 5000, settled_at: null }];
@@ -105,7 +105,81 @@ describe("onglet Cycle", () => {
     const dettes = screen.getByRole("region", { name: "Dettes à encaisser" });
     expect(within(dettes).getByText(/Septembre 2026/)).toBeTruthy();
     await userEvent.click(within(dettes).getByRole("button", { name: "Encaisser la dette de Bob" }));
+    expect(api.saisirEspeces).not.toHaveBeenCalled();
+    expect(screen.getByRole("dialog", { name: "Encaisser la dette de Bob" }).textContent).toContain("5 000 FCFA");
+    await userEvent.click(screen.getByRole("button", { name: "Oui, encaisser" }));
     const [, membre, cycle, somme, dette] = api.saisirEspeces.mock.calls[0];
     expect([membre, cycle, somme, dette]).toEqual(["m-bob", "c-sep", 5000, "d-bob"]);
+  });
+
+  it("dette déclarée par le membre : à valider, pas à encaisser", async () => {
+    const vue = vueTest();
+    vue.cycles = [{ ...vue.cycles[0], id: "c-sep", label: "Septembre 2026", status: "clos", closed_at: "2026-09-30T20:00:00Z" }, ...vue.cycles];
+    vue.dettes = [{ id: "d-bob", membership_id: "m-bob", cycle_id: "c-sep", amount: 5000, settled_at: null }];
+    vue.paiements.push({ id: "p-dette", cycle_id: "c-sep", membership_id: "m-bob", debt_id: "d-bob", amount: 5000, method: "orange_money",
+      reference: "OM7", paid_on: "2026-10-12", status: "declare", contest_reason: null, created_at: "2026-10-12T09:00:00Z" });
+    const api = fauxApi(vue);
+    render(<OngletCycle api={api} vue={vue} recharger={vi.fn()} />);
+    expect(screen.queryByRole("button", { name: "Encaisser la dette de Bob" })).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Valider le règlement de Bob" }));
+    expect(api.validerPaiement).toHaveBeenCalledWith("p-dette");
+  });
+
+  it("membre arrivé après l'ouverture : ni relancé ni compté comme futur débiteur", async () => {
+    const vue = vueTest();
+    vue.membres = vue.membres.map((m) => (m.id === "m-ines" ? { ...m, created_at: "2026-10-10T00:00:00Z" } : m));
+    vue.paiements = vue.paiements.map((p) => (p.id === "p-alice" ? { ...p, status: "valide" as const } : p));
+    const ouvert = vi.spyOn(window, "open").mockImplementation(() => null);
+    render(<OngletCycle api={fauxApi(vue)} vue={vue} recharger={vi.fn()} />);
+    expect(screen.getByText(/Pas concerné/)).toBeTruthy();
+    await userEvent.click(screen.getByRole("button", { name: /Relancer/ }));
+    expect(ouvert).toHaveBeenCalledTimes(1);
+    expect(ouvert.mock.calls[0][0]).toContain("wa.me/237690000004");
+    expect(screen.getByRole("button", { name: /Relancer/ }).textContent).toBe("Relancer les retardataires");
+    await userEvent.click(screen.getByRole("button", { name: "Clore le cycle" }));
+    expect(screen.getByText(/1 membre deviendra débiteur/)).toBeTruthy();
+    ouvert.mockRestore();
+  });
+
+  it("paiement partiel : pas de seconde saisie (refusée par la base), consigne affichée", () => {
+    const vue = vueTest();
+    vue.paiements.push({ id: "p-bob", cycle_id: "c-oct", membership_id: "m-bob", debt_id: null, amount: 3000, method: "especes",
+      reference: null, paid_on: "2026-10-06", status: "valide", contest_reason: null, created_at: "2026-10-06T09:00:00Z" });
+    render(<OngletCycle api={fauxApi(vue)} vue={vue} recharger={vi.fn()} />);
+    expect(screen.queryByRole("button", { name: "Saisir des espèces pour Bob" })).toBeNull();
+    expect(screen.getByText(/annulez ce paiement puis saisissez le montant total/)).toBeTruthy();
+  });
+
+  it("espèces : après un échec réseau, le nouvel essai réutilise le même identifiant", async () => {
+    const api = fauxApi();
+    api.saisirEspeces.mockRejectedValueOnce(new Error("Réseau indisponible"));
+    render(<OngletCycle api={api} vue={vueTest()} recharger={vi.fn()} />);
+    await userEvent.click(screen.getByRole("button", { name: "Saisir des espèces pour Bob" }));
+    await userEvent.click(screen.getByRole("button", { name: "Enregistrer les espèces" }));
+    expect(screen.getAllByText("Réseau indisponible").length).toBeGreaterThan(0);
+    await userEvent.click(screen.getByRole("button", { name: "Enregistrer les espèces" }));
+    expect(api.saisirEspeces).toHaveBeenCalledTimes(2);
+    expect(api.saisirEspeces.mock.calls[1][0]).toBe(api.saisirEspeces.mock.calls[0][0]);
+  });
+
+  it("espèces : le bouton est désactivé pendant l'envoi", async () => {
+    const api = fauxApi();
+    let fini!: () => void;
+    api.saisirEspeces.mockImplementation(() => new Promise<void>((r) => { fini = r; }));
+    render(<OngletCycle api={api} vue={vueTest()} recharger={vi.fn()} />);
+    await userEvent.click(screen.getByRole("button", { name: "Saisir des espèces pour Bob" }));
+    await userEvent.click(screen.getByRole("button", { name: "Enregistrer les espèces" }));
+    expect((screen.getByRole("button", { name: "Enregistrer les espèces" }) as HTMLButtonElement).disabled).toBe(true);
+    fini();
+  });
+
+  it("membre retiré avec une déclaration en attente : à valider, clôture bloquée", () => {
+    const vue = vueTest();
+    vue.membres = vue.membres.map((m) => (m.id === "m-ines" ? { ...m, status: "retire" as const } : m));
+    vue.paiements.push({ id: "p-ines", cycle_id: "c-oct", membership_id: "m-ines", debt_id: null, amount: 5000, method: "mtn_momo",
+      reference: "MP9", paid_on: "2026-10-07", status: "declare", contest_reason: null, created_at: "2026-10-07T09:00:00Z" });
+    render(<OngletCycle api={fauxApi(vue)} vue={vue} recharger={vi.fn()} />);
+    expect(screen.getByRole("button", { name: "Valider le paiement d'Ines" })).toBeTruthy();
+    expect(screen.getByText(/2 paiements à valider avant de clore/)).toBeTruthy();
   });
 });

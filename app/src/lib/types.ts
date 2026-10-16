@@ -21,7 +21,7 @@ export interface Groupe {
 }
 export interface Membre {
   id: string; display_name: string; phone: string; role: RoleGroupe; status: "invite" | "actif" | "retire";
-  position: number | null; person_id: string | null; left_balance: number | null;
+  position: number | null; person_id: string | null; left_balance: number | null; created_at: string;
 }
 export interface Cycle {
   id: string; round: number; number: number; label: string; due_date: string | null; amount_expected: number;

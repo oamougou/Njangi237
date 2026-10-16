@@ -5,11 +5,15 @@ import { dateCourte, de, fcfa } from "../../lib/format";
 import { libelleParDefaut } from "../../lib/libelles";
 import { lienWhatsApp } from "../../lib/liens";
 import { messageRelance, prochaineRelance } from "../../lib/relances";
-import type { Api, Cycle, Dette, VueGroupe } from "../../lib/types";
+import type { Api, Dette, Paiement, VueGroupe } from "../../lib/types";
 import { Confirmer } from "../Confirmer";
 import { Champ } from "../Champ";
 
-type Saisie = { membreId: string; nom: string; cycleId: string; montant: string; detteId?: string } | null;
+/** L'identifiant est tiré à l'ouverture du formulaire : un nouvel essai après une coupure réseau ne crée pas de doublon. */
+type Saisie = { id: string; membreId: string; nom: string; cycleId: string; montant: string } | null;
+type Encaissement = { id: string; dette: Dette; nom: string; libelle: string } | null;
+
+const MOYEN: Record<Paiement["method"], string> = { mtn_momo: "MTN MoMo", orange_money: "Orange Money", especes: "Espèces", autre: "Autre" };
 
 export function OngletCycle({ api, vue, recharger }: { api: Api; vue: VueGroupe; recharger: () => void }) {
   const { groupe, membres, cycles, paiements, dettes } = vue;
@@ -18,6 +22,7 @@ export function OngletCycle({ api, vue, recharger }: { api: Api; vue: VueGroupe;
   const [err, setErr] = useState(""); const [info, setInfo] = useState(""); const [occupe, setOccupe] = useState(false);
   const [contestation, setContestation] = useState<{ id: string; nom: string; motif: string } | null>(null);
   const [saisie, setSaisie] = useState<Saisie>(null);
+  const [encaissement, setEncaissement] = useState<Encaissement>(null);
   const [cloture, setCloture] = useState(false);
   const [file, setFile] = useState<string[] | null>(null);
 
@@ -27,12 +32,11 @@ export function OngletCycle({ api, vue, recharger }: { api: Api; vue: VueGroupe;
     if (enCours.current) return;
     enCours.current = true; setOccupe(true); setErr(""); setInfo("");
     try { await f(); if (ok) setInfo(ok); recharger(); }
-    catch (x) { setErr((x as Error).message); }
+    catch (x) { setErr((x as Error).message); recharger(); }   // l'écran reflète ce qui a pu passer malgré l'erreur
     finally { enCours.current = false; setOccupe(false); }
   };
 
   const nomDe = (id: string) => membres.find((m) => m.id === id)?.display_name ?? "?";
-  const cycleDe = (id: string) => cycles.find((c) => c.id === id);
 
   const relancer = () => {
     if (!bilan || !ouvert) return;
@@ -54,16 +58,17 @@ export function OngletCycle({ api, vue, recharger }: { api: Api; vue: VueGroupe;
 
   const enregistrerEspeces = (s: NonNullable<Saisie>) => {
     const montant = parseInt(s.montant || "0", 10);
-    agir(async () => { await api.saisirEspeces(crypto.randomUUID(), s.membreId, s.cycleId, montant, s.detteId); setSaisie(null); },
-      `Espèces de ${s.nom} enregistrées (${fcfa(montant)}).`);
+    agir(async () => { await api.saisirEspeces(s.id, s.membreId, s.cycleId, montant); setSaisie(null); },
+      `Espèces ${de(s.nom)} enregistrées (${fcfa(montant)}).`);
   };
 
   const dettesOuvertes = dettes.filter((d) => !d.settled_at);
   const dernierClos = !ouvert ? [...cycles].reverse().find((c) => c.status === "clos") ?? null : null;
+  const nbRetard = bilan?.enRetard.length ?? 0;
 
   return (
     <section>
-      {err && <p className="alerte">{err}</p>}
+      {err && <p className="alerte flottante" role="alert">{err}</p>}
       {info && <p className="ok">{info}</p>}
 
       {ouvert && bilan ? (
@@ -73,30 +78,17 @@ export function OngletCycle({ api, vue, recharger }: { api: Api; vue: VueGroupe;
             <div className="chiffres">
               <div><b>{fcfa(bilan.collecte)}</b><span>collecté</span></div>
               <div><b>{bilan.taux} %</b><span>sur {fcfa(bilan.attendu)}</span></div>
-              <div><b>{bilan.enRetard.length}</b><span>en retard</span></div>
+              <div><b>{nbRetard}</b><span>en retard</span></div>
             </div>
           </div>
 
           <ul className="liste">
             {bilan.lignes.map((l) => <LigneMembre key={l.membre.id} l={l} occupe={occupe}
-              onValider={() => agir(() => api.validerPaiement(l.enAttente!.id), `Paiement de ${l.membre.display_name} validé.`)}
+              onValider={() => agir(() => api.validerPaiement(l.enAttente!.id), `Paiement ${de(l.membre.display_name)} validé.`)}
               onContester={(id) => setContestation({ id, nom: l.membre.display_name, motif: "" })}
-              onEspeces={() => setSaisie({ membreId: l.membre.id, nom: l.membre.display_name, cycleId: ouvert.id,
-                montant: String(Math.max(ouvert.amount_expected - l.valide, 0) || ouvert.amount_expected) })} />)}
+              onEspeces={() => setSaisie({ id: crypto.randomUUID(), membreId: l.membre.id, nom: l.membre.display_name, cycleId: ouvert.id,
+                montant: String(ouvert.amount_expected) })} />)}
           </ul>
-
-          {contestation && (
-            <div className="carte">
-              <h3>Contester le paiement {de(contestation.nom)}</h3>
-              <Champ label="Motif" value={contestation.motif} onChange={(e) => setContestation({ ...contestation, motif: e.target.value })} autoFocus />
-              <div className="ligne">
-                <button className="btn" onClick={() => setContestation(null)}>Annuler</button>
-                <button className="btn principal" disabled={occupe || !contestation.motif.trim()} aria-label="Confirmer la contestation"
-                  onClick={() => agir(async () => { await api.contesterPaiement(contestation.id, contestation.motif.trim()); setContestation(null); },
-                    `Paiement de ${contestation.nom} contesté.`)}>Contester</button>
-              </div>
-            </div>
-          )}
 
           {saisie && <FormEspeces saisie={saisie} occupe={occupe} onChange={setSaisie} onAnnuler={() => setSaisie(null)} onEnregistrer={enregistrerEspeces} />}
 
@@ -111,9 +103,9 @@ export function OngletCycle({ api, vue, recharger }: { api: Api; vue: VueGroupe;
           {bilan.aValider > 0 && <p className="note">{bilan.aValider} paiement{bilan.aValider > 1 ? "s" : ""} à valider avant de clore le cycle.</p>}
           {cloture
             ? <Confirmer titre="Clore le cycle" libelle="Oui, clore" occupe={occupe}
-                message={bilan.enRetard.length
-                  ? `${bilan.enRetard.length} membres deviendront débiteurs du reste de leur cotisation. Le cycle ne pourra plus recevoir de paiement ordinaire.`
-                  : "Tout le monde a payé. Le cycle ne pourra plus recevoir de paiement ordinaire."}
+                message={(nbRetard
+                  ? `${nbRetard} membre${nbRetard > 1 ? "s deviendront débiteurs" : " deviendra débiteur"} du reste de sa cotisation.`
+                  : "Tout le monde a payé.") + " Le cycle ne pourra plus recevoir de paiement ordinaire."}
                 onNon={() => setCloture(false)}
                 onOui={() => agir(async () => {
                   const r = await api.cloreCycle(ouvert.id); setCloture(false);
@@ -136,18 +128,49 @@ export function OngletCycle({ api, vue, recharger }: { api: Api; vue: VueGroupe;
         <section role="region" aria-label="Dettes à encaisser" className="carte">
           <h3>Dettes à encaisser</h3>
           <ul className="liste">
-            {dettesOuvertes.map((d: Dette) => {
-              const c: Cycle | undefined = cycleDe(d.cycle_id); const nom = nomDe(d.membership_id);
+            {dettesOuvertes.map((d) => {
+              const libelle = cycles.find((c) => c.id === d.cycle_id)?.label ?? "cycle"; const nom = nomDe(d.membership_id);
+              const declare = paiements.find((p) => p.debt_id === d.id && p.status === "declare");
               return (
                 <li key={d.id} className="ligne">
-                  <span><b>{nom}</b> · {c?.label ?? "cycle"} · {fcfa(d.amount)}</span>
-                  <button className="btn petit" disabled={occupe} aria-label={`Encaisser la dette ${de(nom)}`}
-                    onClick={() => agir(() => api.saisirEspeces(crypto.randomUUID(), d.membership_id, d.cycle_id, d.amount, d.id),
-                      `Dette de ${nom} réglée (${fcfa(d.amount)}).`)}>Encaisser</button>
+                  <span><b>{nom}</b> · {libelle} · {fcfa(d.amount)}
+                    {declare && <span className="note"> · déclaré {MOYEN[declare.method]}{declare.reference ? ` réf. ${declare.reference}` : ""}</span>}</span>
+                  {declare ? <span className="ligne">
+                    <button className="btn petit principal" disabled={occupe} aria-label={`Valider le règlement ${de(nom)}`}
+                      onClick={() => agir(() => api.validerPaiement(declare.id), `Dette ${de(nom)} réglée (${fcfa(declare.amount)}).`)}>Valider</button>
+                    <button className="btn petit" disabled={occupe} aria-label={`Contester le règlement ${de(nom)}`}
+                      onClick={() => setContestation({ id: declare.id, nom, motif: "" })}>Contester</button>
+                  </span>
+                    : <button className="btn petit" disabled={occupe} aria-label={`Encaisser la dette ${de(nom)}`}
+                        onClick={() => setEncaissement({ id: crypto.randomUUID(), dette: d, nom, libelle })}>Encaisser</button>}
                 </li>);
             })}
           </ul>
         </section>
+      )}
+
+      {encaissement && (
+        <Confirmer titre={`Encaisser la dette ${de(encaissement.nom)}`} libelle="Oui, encaisser" occupe={occupe}
+          message={`Encaisser ${fcfa(encaissement.dette.amount)} en espèces ${de(encaissement.nom)} pour ${encaissement.libelle} ?`}
+          onNon={() => setEncaissement(null)}
+          onOui={() => agir(async () => {
+            const { id, dette } = encaissement;
+            await api.saisirEspeces(id, dette.membership_id, dette.cycle_id, dette.amount, dette.id);
+            setEncaissement(null);
+          }, `Dette ${de(encaissement.nom)} réglée (${fcfa(encaissement.dette.amount)}).`)} />
+      )}
+
+      {contestation && (
+        <div className="carte">
+          <h3>Contester le paiement {de(contestation.nom)}</h3>
+          <Champ label="Motif" value={contestation.motif} onChange={(e) => setContestation({ ...contestation, motif: e.target.value })} autoFocus />
+          <div className="ligne">
+            <button className="btn" onClick={() => setContestation(null)}>Annuler</button>
+            <button className="btn principal" disabled={occupe || !contestation.motif.trim()} aria-label="Confirmer la contestation"
+              onClick={() => agir(async () => { await api.contesterPaiement(contestation.id, contestation.motif.trim()); setContestation(null); },
+                `Paiement ${de(contestation.nom)} contesté.`)}>Contester</button>
+          </div>
+        </div>
       )}
     </section>
   );
@@ -160,18 +183,21 @@ function LigneMembre({ l, occupe, onValider, onContester, onEspeces }: {
   return (
     <li className={`carte membre ${l.etat}`}>
       <div className="ligne">
-        <span><b>{nom}</b>{l.membre.status === "invite" && <span className="note"> · invité</span>}</span>
+        <span><b>{nom}</b>{l.membre.status === "invite" && <span className="note"> · invité</span>}
+          {l.membre.status === "retire" && <span className="note"> · parti</span>}</span>
         <span className={`pastille ${l.etat}`}>{LIBELLE_ETAT[l.etat]}</span>
       </div>
-      {p && <p className="note">Déclaré : {fcfa(p.amount)} · {p.method === "mtn_momo" ? "MTN MoMo" : p.method === "orange_money" ? "Orange Money" : p.method}
-        {p.reference ? ` · réf. ${p.reference}` : ""} · {dateCourte(p.paid_on)}</p>}
+      {p && <p className="note">Déclaré : {fcfa(p.amount)} · {MOYEN[p.method]}{p.reference ? ` · réf. ${p.reference}` : ""} · {dateCourte(p.paid_on)}</p>}
       {l.valide > 0 && l.etat !== "paye" && <p className="note">Déjà validé : {fcfa(l.valide)}</p>}
+      {l.etat === "partiel" && !p && <p className="note">Pour compléter : annulez ce paiement puis saisissez le montant total.</p>}
+      {l.etat === "hors" && <p className="note">Arrivé(e) après l'ouverture du cycle : rien à payer pour celui-ci.</p>}
       <div className="ligne actions">
         {p && <>
           <button className="btn petit principal" disabled={occupe} aria-label={`Valider le paiement ${de(nom)}`} onClick={onValider}>Valider</button>
           <button className="btn petit" disabled={occupe} aria-label={`Contester le paiement ${de(nom)}`} onClick={() => onContester(p.id)}>Contester</button>
         </>}
-        {!p && l.etat !== "paye" && <button className="btn petit" disabled={occupe} aria-label={`Saisir des espèces pour ${nom}`} onClick={onEspeces}>Espèces</button>}
+        {/* Un seul paiement ordinaire par membre et par cycle en base : pas de seconde saisie si un paiement existe déjà */}
+        {!p && l.compte && l.valide === 0 && <button className="btn petit" disabled={occupe} aria-label={`Saisir des espèces pour ${nom}`} onClick={onEspeces}>Espèces</button>}
         {l.dernierValide && !p && <button className="lien" disabled={occupe} aria-label={`Annuler le paiement ${de(nom)}`}
           onClick={() => onContester(l.dernierValide!.id)}>Annuler ce paiement</button>}
       </div>

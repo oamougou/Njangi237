@@ -81,20 +81,34 @@ export function createSupabaseApi(url: string, key: string): Api {
     async chargerGroupe(groupId): Promise<VueGroupe> {
       const { data } = await sb.auth.getSession();
       const moi = data.session?.user.id;
-      const [g, m, c, p, d] = await Promise.all([
-        sb.from("groups").select("id, name, type, amount, frequency, beneficiaries_per_cycle, current_round").eq("id", groupId).single(),
-        sb.from("memberships").select("id, display_name, phone, role, status, position, person_id, left_balance").eq("group_id", groupId),
+      const [g, m, c, d] = await Promise.all([
+        sb.from("groups").select("id, name, type, amount, frequency, beneficiaries_per_cycle, current_round").eq("id", groupId).maybeSingle(),
+        sb.from("memberships").select("id, display_name, phone, role, status, position, person_id, left_balance, created_at")
+          .eq("group_id", groupId).order("position", { nullsFirst: false }).order("display_name"),
         sb.from("cycles").select("id, round, number, label, due_date, amount_expected, status, opened_at, closed_at")
           .eq("group_id", groupId).order("round").order("number"),
-        sb.from("payments").select("id, cycle_id, membership_id, debt_id, amount, method, reference, paid_on, status, contest_reason, created_at")
-          .eq("group_id", groupId).order("created_at"),
         sb.from("debts").select("id, membership_id, cycle_id, amount, settled_at").eq("group_id", groupId),
       ]);
+      const groupe = must(g) as VueGroupe["groupe"] | null;
+      if (!groupe) throw new Error("Groupe introuvable");
       const membres = must(m) as VueGroupe["membres"];
+      const cycles = must(c) as VueGroupe["cycles"];
+      const dettes = must(d) as VueGroupe["dettes"];
+      // Paiements bornés (la limite de 1 000 lignes de l'API couperait les plus récents) :
+      // cycle ouvert, dernier cycle clos, et règlements des dettes encore ouvertes.
+      const ouvert = cycles.find((x) => x.status === "ouvert");
+      const dernierClos = [...cycles].reverse().find((x) => x.status === "clos");
+      const filtres: string[] = [];
+      const ids = [ouvert?.id, dernierClos?.id].filter(Boolean);
+      if (ids.length) filtres.push(`cycle_id.in.(${ids.join(",")})`);
+      const dettesOuvertes = dettes.filter((x) => !x.settled_at).map((x) => x.id);
+      if (dettesOuvertes.length) filtres.push(`debt_id.in.(${dettesOuvertes.join(",")})`);
+      const paiements = filtres.length ? must(await sb.from("payments")
+        .select("id, cycle_id, membership_id, debt_id, amount, method, reference, paid_on, status, contest_reason, created_at")
+        .eq("group_id", groupId).or(filtres.join(",")).order("created_at")) as VueGroupe["paiements"] : [];
       return {
         role: membres.find((x) => x.person_id === moi && x.status === "actif")?.role ?? "membre",
-        groupe: must(g) as VueGroupe["groupe"], membres,
-        cycles: must(c) as VueGroupe["cycles"], paiements: must(p) as VueGroupe["paiements"], dettes: must(d) as VueGroupe["dettes"],
+        groupe, membres, cycles, paiements, dettes,
       };
     },
     async ouvrirCycle(groupId, libelle, echeance) {

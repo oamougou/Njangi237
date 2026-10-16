@@ -3,7 +3,8 @@ import { bilanCycle } from "./cycle";
 import type { Cycle, Membre, Paiement } from "./types";
 
 const m = (id: string, nom: string, status: Membre["status"] = "actif", position = 1): Membre =>
-  ({ id, display_name: nom, phone: "237690000000", role: "membre", status, position, person_id: null, left_balance: null });
+  ({ id, display_name: nom, phone: "237690000000", role: "membre", status, position, person_id: null, left_balance: null,
+     created_at: "2026-09-01T00:00:00Z" });
 const CYCLE: Cycle = { id: "c1", round: 1, number: 1, label: "Octobre", due_date: "2026-10-30", amount_expected: 5000,
   status: "ouvert", opened_at: "2026-10-01T00:00:00Z", closed_at: null };
 const p = (id: string, membre: string, amount: number, status: Paiement["status"], debt_id: string | null = null): Paiement =>
@@ -36,5 +37,21 @@ describe("bilanCycle", () => {
   });
   it("aucun membre : pas de division par zéro", () => {
     expect(bilanCycle(CYCLE, [], []).taux).toBe(0);
+  });
+});
+
+describe("bilanCycle : membres non concernés par le cycle", () => {
+  it("un membre arrivé après l'ouverture n'est pas compté, comme à la clôture en base", () => {
+    const tardif = { ...m("t", "Tardif", "actif", 7), created_at: "2026-10-10T00:00:00Z" };
+    const b = bilanCycle(CYCLE, [m("a", "Alice"), tardif], []);
+    expect(b.attendu).toBe(5000);
+    expect(b.lignes.find((l) => l.membre.id === "t")?.etat).toBe("hors");
+    expect(b.enRetard.map((l) => l.membre.id)).toEqual(["a"]);
+  });
+  it("un membre retiré qui a une déclaration en attente reste à valider (sinon la clôture est refusée)", () => {
+    const b = bilanCycle(CYCLE, [m("a", "Alice"), m("r", "Retiré", "retire", 2)], [p("p9", "r", 5000, "declare")]);
+    expect(b.aValider).toBe(1);
+    expect(b.lignes.find((l) => l.membre.id === "r")?.etat).toBe("declare");
+    expect(b.attendu).toBe(5000);
   });
 });
