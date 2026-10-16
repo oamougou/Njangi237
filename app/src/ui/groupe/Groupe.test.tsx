@@ -50,4 +50,16 @@ describe("espace du groupe", () => {
     await screen.findByText("Octobre 2026");
     expect(api.abonner).toHaveBeenCalledWith(["g1"], expect.any(Function));
   });
+  it("trésorier d'une tontine : quatre onglets ; Tours masqué pour une cotisation", async () => {
+    const api = fauxApi();
+    render(<Groupe api={api} id="g1" onglet="tours" personId="u-tina" stockage={stockageMemoire()} />);
+    expect(await screen.findByRole("list", { name: "Ordre des tours" })).toBeTruthy();
+    expect(screen.getAllByRole("link").map((a) => a.textContent)).toEqual(expect.arrayContaining(["Cycle", "Membres", "Tours", "Journal"]));
+    cleanup();
+    const v = vueTest();
+    render(<Groupe api={fauxApi({ ...v, groupe: { ...v.groupe, type: "cotisation" } })} id="g1" onglet="journal" personId="u-tina"
+      stockage={stockageMemoire()} />);
+    expect(await screen.findByText("Aucune action enregistrée pour l'instant.")).toBeTruthy();
+    expect(screen.queryByRole("link", { name: "Tours" })).toBeNull();
+  });
 });
