@@ -2,7 +2,7 @@ import { createClient } from "@supabase/supabase-js";
 import { genererJeton, hashJeton } from "./jeton";
 import { lienApp, lienWhatsApp, messageWhatsApp, type TypeLien } from "./liens";
 import { normaliserTelephone } from "./telephone";
-import type { Api, LienEnvoye, MonGroupe, Personne } from "./types";
+import type { Api, ApercuRetrait, LienEnvoye, MonGroupe, Personne, VueGroupe } from "./types";
 
 type SessionServeur = { session: { access_token: string; refresh_token: string } };
 
@@ -77,6 +77,42 @@ export function createSupabaseApi(url: string, key: string): Api {
       return inviter(r.membership_id, "invitation");
     },
     inviter,
+
+    async chargerGroupe(groupId): Promise<VueGroupe> {
+      const { data } = await sb.auth.getSession();
+      const moi = data.session?.user.id;
+      const [g, m, c, p, d] = await Promise.all([
+        sb.from("groups").select("id, name, type, amount, frequency, beneficiaries_per_cycle, current_round").eq("id", groupId).single(),
+        sb.from("memberships").select("id, display_name, phone, role, status, position, person_id, left_balance").eq("group_id", groupId),
+        sb.from("cycles").select("id, round, number, label, due_date, amount_expected, status, opened_at, closed_at")
+          .eq("group_id", groupId).order("round").order("number"),
+        sb.from("payments").select("id, cycle_id, membership_id, debt_id, amount, method, reference, paid_on, status, contest_reason, created_at")
+          .eq("group_id", groupId).order("created_at"),
+        sb.from("debts").select("id, membership_id, cycle_id, amount, settled_at").eq("group_id", groupId),
+      ]);
+      const membres = must(m) as VueGroupe["membres"];
+      return {
+        role: membres.find((x) => x.person_id === moi && x.status === "actif")?.role ?? "membre",
+        groupe: must(g) as VueGroupe["groupe"], membres,
+        cycles: must(c) as VueGroupe["cycles"], paiements: must(p) as VueGroupe["paiements"], dettes: must(d) as VueGroupe["dettes"],
+      };
+    },
+    async ouvrirCycle(groupId, libelle, echeance) {
+      must(await sb.rpc("ouvrir_cycle", { p_group: groupId, p_label: libelle, p_due_date: echeance }));
+    },
+    cloreCycle: async (cycleId) => must(await sb.rpc("clore_cycle", { p_cycle: cycleId })) as { dettes: number; montant: number },
+    async rouvrirCycle(cycleId) { must(await sb.rpc("rouvrir_cycle", { p_cycle: cycleId })); },
+    async validerPaiement(id) { must(await sb.rpc("valider_paiement", { p_payment: id })); },
+    async contesterPaiement(id, motif) { must(await sb.rpc("contester_paiement", { p_payment: id, p_reason: motif })); },
+    async saisirEspeces(id, membershipId, cycleId, montant, detteId) {
+      must(await sb.rpc("saisir_especes", { p_id: id, p_membership: membershipId, p_cycle: cycleId, p_amount: montant,
+        p_paid_on: null, p_debt: detteId ?? null }));
+    },
+    ajouterMembre: async (groupId, nom, telephone) =>
+      must(await sb.rpc("ajouter_membre", { p_group: groupId, p_name: nom, p_phone: telephone })) as string,
+    async changerRole(membershipId, role) { must(await sb.rpc("changer_role", { p_membership: membershipId, p_role: role })); },
+    apercuRetrait: async (membershipId) => must(await sb.rpc("apercu_retrait", { p_membership: membershipId })) as ApercuRetrait,
+    async retirerMembre(membershipId) { must(await sb.rpc("retirer_membre", { p_membership: membershipId })); },
   };
   return api;
 }
