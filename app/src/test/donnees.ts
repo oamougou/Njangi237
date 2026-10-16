@@ -2,7 +2,7 @@ import type { VueGroupe } from "../lib/types";
 
 /** Tontine de 4 membres (Tina trésorière), cycle d'octobre ouvert : Tina a payé, Alice a déclaré, Bob et Ines sont en retard. */
 export function vueTest(): VueGroupe {
-  const base = { person_id: null, left_balance: null };
+  const base = { person_id: null, left_balance: null, created_at: "2026-09-01T00:00:00Z" };
   return {
     role: "tresorier",
     groupe: { id: "g1", name: "Tontine des amis", type: "tontine", amount: 5000, frequency: "mensuelle", beneficiaries_per_cycle: 1, current_round: 1 },

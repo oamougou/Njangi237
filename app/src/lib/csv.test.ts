@@ -7,8 +7,8 @@ describe("csvCycle", () => {
   const CYCLE: Cycle = { id: "c1", round: 1, number: 1, label: "Octobre", due_date: null, amount_expected: 5000,
     status: "ouvert", opened_at: "2026-10-01T00:00:00Z", closed_at: null };
   const membres: Membre[] = [
-    { id: "a", display_name: 'Alice "la grande"', phone: "237690000003", role: "membre", status: "actif", position: 1, person_id: null, left_balance: null },
-    { id: "b", display_name: "Bob; fils", phone: "237690000004", role: "membre", status: "actif", position: 2, person_id: null, left_balance: null },
+    { id: "a", display_name: 'Alice "la grande"', phone: "237690000003", role: "membre", status: "actif", position: 1, person_id: null, left_balance: null, created_at: "2026-09-01T00:00:00Z" },
+    { id: "b", display_name: "Bob; fils", phone: "237690000004", role: "membre", status: "actif", position: 2, person_id: null, left_balance: null, created_at: "2026-09-01T00:00:00Z" },
   ];
   const paiements: Paiement[] = [{ id: "p1", cycle_id: "c1", membership_id: "a", debt_id: null, amount: 5000, method: "mtn_momo",
     reference: "MP1", paid_on: "2026-10-10", status: "valide", contest_reason: null, created_at: "2026-10-10T10:00:00Z" }];
