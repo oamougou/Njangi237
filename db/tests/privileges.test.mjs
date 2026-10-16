@@ -9,7 +9,7 @@ const q = async (sql) => (await db.query(sql)).rows;
 /** Seules fonctions appelables par l'application (rôle authenticated). */
 export const ALLOWED = [
   "ajouter_membre", "apercu_retrait", "changer_role", "clore_cycle", "contester_paiement", "creer_groupe",
-  "declarer_paiement", "echanger_tours", "enregistrer_remise", "is_member", "is_platform_admin", "is_treasurer",
+  "declarer_paiement", "echanger_tours", "enregistrer_remise", "inviter", "is_member", "is_platform_admin", "is_treasurer",
   "nouveau_tour", "ordonner_tours", "ordre_tours", "ouvrir_cycle", "recouvrement", "remplacer_beneficiaire",
   "retirer_membre", "rouvrir_cycle", "saisir_especes", "tirer_au_sort", "valider_paiement",
 ];
@@ -44,4 +44,12 @@ test("temps réel : les quatre tables suivies par l'application", async () => {
   assert.deepEqual((await q(`select tablename from pg_publication_tables
                               where pubname = 'supabase_realtime' order by 1`)).map((r) => r.tablename),
     ["cycles", "memberships", "payments", "payouts"]);
+});
+
+const SERVICE = ["enregistrer_echec", "enregistrer_succes", "finaliser_invitation", "finaliser_nouveau_pin",
+  "lire_invitation", "verifier_blocage"];
+
+test("les fonctions de la fonction serveur comptes sont exécutables par service_role", async () => {
+  const rows = (await executable("service_role")).map((r) => r.proname);
+  for (const f of SERVICE) assert.ok(rows.includes(f), f);
 });
