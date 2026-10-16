@@ -10,11 +10,16 @@ import { OngletMembres } from "./OngletMembres";
 import { OngletTours } from "./OngletTours";
 import { Avatar } from "../Decor";
 
+/** Vue gardée sur le téléphone par une version précédente : champs du lot 5 absents (ordre inconnu = verrouillé). */
+const completer = (v: VueGroupe): VueGroupe => ({
+  ...v, remises: v.remises ?? [], groupe: { ...v.groupe, order_locked: v.groupe.order_locked ?? true },
+});
+
 /** Espace d'un groupe : trésorier (onglets) ou membre. Mémoire locale, temps réel, lecture seule hors ligne. */
 export function Groupe({ api, id, onglet, personId, stockage }: {
   api: Api; id: string; onglet: OngletGroupe; personId: string; stockage: Stockage;
 }) {
-  const { vue, le, horsLigne, err, recharger } = useVue<VueGroupe>({
+  const { vue: brute, le, horsLigne, err, recharger } = useVue<VueGroupe>({
     cle: `${personId}.groupe.${id}`, stockage,
     charger: () => api.chargerGroupe(id), abonner: (cb) => api.abonner([id], cb),
   });
@@ -25,6 +30,7 @@ export function Groupe({ api, id, onglet, personId, stockage }: {
       <button className="btn petit" onClick={recharger}>Réessayer</button>
     </div>);
 
+  const vue = brute && completer(brute);
   if (!vue) return bandeau || <p className="note">Chargement…</p>;
   if (vue.role !== "tresorier") return <EspaceMembre api={api} groupId={id} personId={personId} stockage={stockage} />;
   return (

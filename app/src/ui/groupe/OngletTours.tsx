@@ -27,7 +27,12 @@ export function OngletTours({ api, vue, recharger }: { api: Api; vue: VueGroupe;
   const cycle = (id: string) => vue.cycles.find((c) => c.id === id);
   const nonServis = etat.lignes.filter((l) => !l.servi).map((l) => l.membre);
   const dernierClos = [...vue.cycles].reverse().find((c) => c.status === "clos");
-  const ids = brouillon ?? etat.lignes.map((l) => l.membre.id);
+  const reels = etat.lignes.map((l) => l.membre.id);
+  // Brouillon périmé (un autre trésorier a changé les membres ou ouvert un cycle) : on revient à l'ordre réel
+  const brouillonValide = brouillon !== null && !g.order_locked && brouillon.length === reels.length
+    && brouillon.every((id) => reels.includes(id));
+  const ids = brouillonValide ? brouillon : reels;
+  const cycleOuvert = vue.cycles.some((c) => c.status === "ouvert");
 
   const agir = async (f: () => Promise<string>) => {
     setOccupe(true); setErr(""); setInfo("");
@@ -54,7 +59,8 @@ export function OngletTours({ api, vue, recharger }: { api: Api; vue: VueGroupe;
         <div className="carte succes">
           <h3>Tour {g.current_round} terminé 🎉</h3>
           <p className="note">Tous les membres ont reçu leur part.</p>
-          <button className="btn principal" onClick={() => setConfirmer("nouveau")}>Commencer le tour {g.current_round + 1}</button>
+          {cycleOuvert && <p className="note">Clôturez d'abord le cycle en cours (onglet Cycle).</p>}
+          <button className="btn principal" disabled={cycleOuvert} onClick={() => setConfirmer("nouveau")}>Commencer le tour {g.current_round + 1}</button>
         </div>)}
 
       <div className="carte">
@@ -64,7 +70,8 @@ export function OngletTours({ api, vue, recharger }: { api: Api; vue: VueGroupe;
           : "Réglez l'ordre à la main ou tirez-le au sort. Il sera verrouillé à l'ouverture du premier cycle."}</p>
         <ol className="liste tours" aria-label="Ordre des tours">
           {ids.map((id, i) => {
-            const l = etat.lignes.find((x) => x.membre.id === id)!;
+            const l = etat.lignes.find((x) => x.membre.id === id);
+            if (!l) return null;
             const n = l.membre.display_name;
             return (
               <li key={id} className="ligne">
@@ -86,7 +93,7 @@ export function OngletTours({ api, vue, recharger }: { api: Api; vue: VueGroupe;
         </ol>
         {!g.order_locked ? (
           <div className="actions">
-            <button className="btn principal" disabled={!brouillon || occupe}
+            <button className="btn principal" disabled={!brouillonValide || occupe}
               onClick={() => agir(async () => { await api.ordonnerTours(g.id, ids); setBrouillon(null); return "Ordre des tours enregistré."; })}>
               Enregistrer l'ordre</button>
             <button className="btn" disabled={occupe} onClick={() => setConfirmer("tirage")}>Tirer au sort</button>
