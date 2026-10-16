@@ -45,6 +45,9 @@ Le service worker fonctionne « réseau d'abord » : une nouvelle version arrive
   mots de passe Auth des PIN) et `AMORCE_TELEPHONE`. Déployée sans vérification JWT (elle authentifie elle-même).
 - Application v2 : `app/` (`npm test`, `npm run build`), publiée sur https://v2.njangi237.pages.dev :
   `npx wrangler pages deploy dist --project-name njangi237 --branch v2`. Configuration dans `app/.env` (voir `.env.example`).
+- Espace trésorier (lot 3) : onglets Cycle (ouvrir/clore/rouvrir, valider/contester, espèces, relances WhatsApp, export CSV,
+  dettes) et Membres (ajout manuel ou depuis les contacts du téléphone sur Chrome Android, invitations, nouveau PIN, rôles,
+  retrait avec aperçu). Tests d'écran sans compte : `npm test` (React Testing Library, fausse Api).
 - Supabase Auth : inscriptions publiques fermées (les comptes ne naissent que par invitation ou amorçage), limite « sign-ins » relevée.
 - Spécification et plans : `docs/superpowers/`.
 
