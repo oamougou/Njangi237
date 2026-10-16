@@ -14,9 +14,11 @@ export function MesGroupes({ api }: { api: Api }) {
     <ul className="liste">
       {groupes.map((g) => (
         <li key={g.membership_id} className="carte groupe">
-          <div className="ligne"><h3>{g.groupe.name}</h3>
-            <span className={`pastille ${g.role}`}>{g.role === "tresorier" ? "Trésorier" : "Membre"}</span></div>
-          <p className="note">{TYPE[g.groupe.type] ?? "Groupe"} · {g.groupe.frequency} · {fcfa(g.groupe.amount)} par cycle</p>
+          <a className="groupe-lien" href={`#/groupe/${g.groupe.id}`}>
+            <div className="ligne"><h3>{g.groupe.name}</h3>
+              <span className={`pastille ${g.role}`}>{g.role === "tresorier" ? "Trésorier" : "Membre"}</span></div>
+            <p className="note">{TYPE[g.groupe.type] ?? "Groupe"} · {g.groupe.frequency} · {fcfa(g.groupe.amount)} par cycle</p>
+          </a>
         </li>))}
     </ul>
   );
