@@ -46,6 +46,29 @@ export async function rpc(db, uid, fn, args = []) {
   return rows[0].r;
 }
 
+/** Exécute une requête en tant que service_role (la fonction serveur), sans utilisateur connecté. */
+export async function asService(db, sql, params = []) {
+  await db.exec("savepoint as_service");
+  try {
+    await db.query("select set_config('request.jwt.claims', '', true)");
+    await db.exec("set local role service_role");
+    const res = await db.query(sql, params);
+    await db.exec("reset role");
+    await db.exec("release savepoint as_service");
+    return res.rows;
+  } catch (e) {
+    await db.exec("rollback to savepoint as_service");
+    await db.exec("release savepoint as_service");
+    throw e;
+  }
+}
+
+/** Appelle une fonction scalaire en tant que service_role. */
+export async function svc(db, fn, args = []) {
+  const ph = args.map((_, i) => `$${i + 1}`).join(", ");
+  return (await asService(db, `select ${fn}(${ph}) as r`, args))[0].r;
+}
+
 /**
  * SQL en superutilisateur dans un point de sauvegarde : un échec attendu (contrainte violée)
  * n'invalide pas la transaction du scénario, les instructions suivantes restent possibles.
