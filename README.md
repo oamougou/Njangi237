@@ -32,6 +32,16 @@ npx wrangler pages deploy . --project-name njangi237 --branch main
 
 Le service worker fonctionne « réseau d'abord » : une nouvelle version arrive dès que le téléphone a du réseau, la version en cache sert hors ligne. Incrémenter `CACHE` dans `sw.js` à chaque version.
 
+## v2 — base de données (en cours)
+
+- Projet Supabase `njangi237` : ref `jviedpdlyqixpfynekqs`, URL `https://jviedpdlyqixpfynekqs.supabase.co`, région eu-west-1, fuseau Africa/Douala.
+- Migrations : `supabase/migrations/0001…0006` (appliquées le 2026-10-16). Tests locaux sans Docker :
+  ```bash
+  cd db && npm install && npm test
+  ```
+- Vérification après déploiement : exécuter `db/remote_smoke.sql` dans l'éditeur SQL (tout est annulé à la fin).
+- Spécification et plans : `docs/superpowers/`.
+
 ## Utilisation immédiate (sans hébergement)
 Tu peux ouvrir `index.html` directement dans le navigateur du téléphone (double-clic ou via une appli de gestion de fichiers) : l'app fonctionne intégralement. Seule limite : l'installation "Ajouter à l'écran d'accueil" avec icône dédiée et le cache hors-ligne du service worker demandent que les fichiers soient servis en `http(s)://`, pas en `file://` (limitation standard des navigateurs Android/iOS).
 
