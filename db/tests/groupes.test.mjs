@@ -82,6 +82,6 @@ test("aperçu du retrait d'un membre déjà servi, et bénéficiaire en cours pr
     insert into payouts(group_id, cycle_id, round, membership_id, amount_expected) values ('${G.tontine}','${C2}',1,'${M.bob}',20000);`);
   // Alice a « bouffé » ; restent Tina et Ines (2 cycles) + le cycle ouvert qu'elle n'a pas payé = 3
   assert.deepEqual(await rpc(db, P.tres, "apercu_retrait", [M.alice]),
-    { deja_servi: true, cycles_restants: 3, montant_restant: 15000 });
+    { deja_servi: true, cycles_restants: 3, montant_restant: 15000, dettes: 0 });
   await assert.rejects(rpc(db, P.tres, "retirer_membre", [M.bob]), /bénéficiaire du cycle en cours/);
 }));

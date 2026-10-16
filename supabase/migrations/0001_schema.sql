@@ -49,6 +49,7 @@ create table memberships (
   position     int,
   joined_at    timestamptz,
   left_at      timestamptz,
+  left_balance int,                                      -- encore dû au départ (cycles restants du tour), figé au retrait
   created_at   timestamptz not null default now(),
   unique (group_id, phone),
   unique (group_id, person_id)
