@@ -1,0 +1,7 @@
+{
+  "name": "njangi237-db-tests",
+  "private": true,
+  "type": "module",
+  "scripts": { "test": "node --test --test-concurrency=1 tests/*.test.mjs" },
+  "devDependencies": { "@electric-sql/pglite": "0.5.8" }
+}
