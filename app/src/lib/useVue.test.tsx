@@ -59,4 +59,19 @@ describe("useVue", () => {
     expect(arret).toHaveBeenCalled();
     vi.useRealTimers();
   });
+
+  it("deux rechargements qui se croisent : la réponse la plus récente gagne", async () => {
+    const attentes: ((v: { n: number }) => void)[] = [];
+    let signal!: () => void;
+    vi.useFakeTimers();
+    render(<Sonde cle="u1.g1" stockage={stockageMemoire()} abonner={(cb) => { signal = cb; return () => {}; }}
+      charger={() => new Promise((r) => { attentes.push(r); })} />);
+    act(() => { signal(); });
+    await act(async () => { await vi.advanceTimersByTimeAsync(400); });
+    expect(attentes).toHaveLength(2);
+    await act(async () => { attentes[1]({ n: 2 }); });
+    await act(async () => { attentes[0]({ n: 1 }); });
+    expect(screen.getByText("n=2")).toBeTruthy();
+    vi.useRealTimers();
+  });
 });

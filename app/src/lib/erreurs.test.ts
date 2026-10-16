@@ -14,4 +14,14 @@ describe("erreurs", () => {
     expect(estReseau(e)).toBe(false);
     expect(versErreur(null).message).toBe("Erreur inattendue, réessayez");
   });
+  it("sans code SQL (portail captif, page HTML, délai dépassé) : coupure, pas refus", () => {
+    expect(versErreur({ message: "SyntaxError: Unexpected token '<'", code: "" })).toBeInstanceOf(ErreurReseau);
+    expect(versErreur({ message: "AbortError: signal timed out" })).toBeInstanceOf(ErreurReseau);
+    expect(estReseau(new DOMException("signal timed out", "TimeoutError"))).toBe(true);
+  });
+  it("session expirée ou appel parti sans session : à réessayer, pas un refus définitif", () => {
+    expect(versErreur({ message: "JWT expired", code: "PGRST301" })).toBeInstanceOf(ErreurReseau);
+    expect(versErreur({ message: "permission denied for function declarer_paiement", code: "42501" })).toBeInstanceOf(ErreurReseau);
+    expect(versErreur({ message: "Vous n'êtes pas membre de ce groupe", code: "42501" })).not.toBeInstanceOf(ErreurReseau);
+  });
 });

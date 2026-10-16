@@ -29,44 +29,49 @@ export function relire<T>(s: Stockage, cle: string): Memo<T> | null {
 }
 
 export interface EnFile { declaration: Declaration; etat: "attente" | "rejete"; erreur?: string }
-const CLE_FILE = "njangi.file";
 
-export function lireFile(s: Stockage): EnFile[] {
-  try { return JSON.parse(s.lire(CLE_FILE) ?? "[]") as EnFile[]; } catch { return []; }
-}
-const ecrireFile = (s: Stockage, f: EnFile[]) => s.ecrire(CLE_FILE, JSON.stringify(f));
+/** Une file par personne : sur un téléphone partagé, la déclaration d'Alice n'est jamais envoyée sous la session de Bob. */
+const cleFile = (personId: string) => `njangi.file.${personId}`;
 
-export function mettreEnFile(s: Stockage, d: Declaration) {
-  const f = lireFile(s);
-  if (!f.some((e) => e.declaration.id === d.id)) ecrireFile(s, [...f, { declaration: d, etat: "attente" }]);
+export function lireFile(s: Stockage, personId: string): EnFile[] {
+  try { return JSON.parse(s.lire(cleFile(personId)) ?? "[]") as EnFile[]; } catch { return []; }
 }
-export function retirerDeFile(s: Stockage, id: string) {
-  ecrireFile(s, lireFile(s).filter((e) => e.declaration.id !== id));
+const ecrireFile = (s: Stockage, personId: string, f: EnFile[]) => s.ecrire(cleFile(personId), JSON.stringify(f));
+
+export function mettreEnFile(s: Stockage, personId: string, d: Declaration) {
+  const f = lireFile(s, personId);
+  if (!f.some((e) => e.declaration.id === d.id)) ecrireFile(s, personId, [...f, { declaration: d, etat: "attente" }]);
+}
+export function retirerDeFile(s: Stockage, personId: string, id: string) {
+  ecrireFile(s, personId, lireFile(s, personId).filter((e) => e.declaration.id !== id));
 }
 
-let envoiEnCours: Promise<{ envoyes: number; rejetes: number; coupure: boolean }> | null = null;
+type Resultat = { envoyes: number; rejetes: number; coupure: boolean };
+const envoisEnCours = new Map<string, Promise<Resultat>>();
 
 /**
- * Envoie les déclarations en attente, dans l'ordre. Une coupure arrête l'envoi (on réessaiera) ; un refus de la base
- * marque la déclaration « rejete » avec son motif (elle ne sera plus renvoyée). Un seul vidage à la fois.
+ * Envoie les déclarations en attente de cette personne, dans l'ordre. Une coupure arrête l'envoi (on réessaiera) ;
+ * un refus de la base marque la déclaration « rejete » avec son motif (plus jamais renvoyée). Un seul vidage à la fois.
  */
-export function viderFile(s: Stockage, envoyer: (d: Declaration) => Promise<unknown>) {
-  if (envoiEnCours) return envoiEnCours;
-  envoiEnCours = (async () => {
+export function viderFile(s: Stockage, personId: string, envoyer: (d: Declaration) => Promise<unknown>): Promise<Resultat> {
+  const enCours = envoisEnCours.get(personId);
+  if (enCours) return enCours;
+  const p = (async () => {
     let envoyes = 0, rejetes = 0, coupure = false;
-    for (const e of lireFile(s).filter((x) => x.etat === "attente")) {
+    for (const e of lireFile(s, personId).filter((x) => x.etat === "attente")) {
       try {
         await envoyer(e.declaration);
-        retirerDeFile(s, e.declaration.id);
+        retirerDeFile(s, personId, e.declaration.id);
         envoyes++;
       } catch (err) {
         if (estReseau(err)) { coupure = true; break; }
-        ecrireFile(s, lireFile(s).map((x) => x.declaration.id === e.declaration.id
+        ecrireFile(s, personId, lireFile(s, personId).map((x) => x.declaration.id === e.declaration.id
           ? { ...x, etat: "rejete" as const, erreur: (err as Error).message } : x));
         rejetes++;
       }
     }
     return { envoyes, rejetes, coupure };
-  })().finally(() => { envoiEnCours = null; });
-  return envoiEnCours;
+  })().finally(() => { envoisEnCours.delete(personId); });
+  envoisEnCours.set(personId, p);
+  return p;
 }

@@ -56,8 +56,8 @@ export interface Declaration {
 }
 /** Résumé affiché sur la carte d'un groupe dans « Mes groupes ». */
 export interface ResumeGroupe {
-  cycle: string | null; echeance: string | null; montant: number | null;
-  monEtat: "paye" | "en_attente" | "conteste" | "a_payer" | null; aValider: number;
+  cycleId: string | null; cycle: string | null; echeance: string | null; montant: number | null;
+  monEtat: "paye" | "en_attente" | "conteste" | "a_payer" | "hors" | null; aValider: number;
 }
 
 /** Contrat unique de l'application (le mode démo du lot 6 l'implémentera aussi). */

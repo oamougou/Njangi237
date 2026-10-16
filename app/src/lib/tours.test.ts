@@ -20,11 +20,17 @@ describe("estimerTour", () => {
   it("deux bénéficiaires par cycle, hebdomadaire, sans cycle ouvert", () => {
     const ordre = [o(1), o(2), o(3), o(4, { is_me: true })];
     const e = estimerTour(ordre, 2, "hebdomadaire", null, new Date("2026-10-16T00:00:00Z"))!;
-    expect(e.cyclesAvant).toBe(1);
+    expect(e.cyclesAvant).toBe(2);
     expect(e.date?.toISOString().slice(0, 10)).toBe("2026-10-23");
   });
   it("déjà servi dans ce tour, ou fréquence ponctuelle", () => {
     expect(estimerTour([o(1, { is_me: true, servi: true })], 1, "mensuelle", OUVERT)).toBeNull();
     expect(estimerTour([o(1), o(2, { is_me: true })], 1, "ponctuelle", OUVERT)?.date).toBeNull();
+  });
+  it("sans cycle ouvert, premier de la liste : au prochain cycle (pas « ce cycle »)", () => {
+    const e = estimerTour([o(1, { is_me: true })], 1, "mensuelle", null, new Date("2026-10-16T00:00:00Z"))!;
+    expect(e.cyclesAvant).toBe(1);
+    expect(e.date?.toISOString().slice(0, 10)).toBe("2026-10-16");
+    expect(estimerTour([o(1, { is_me: true, prevu: true })], 1, "mensuelle", null)?.cyclesAvant).toBe(1);
   });
 });
