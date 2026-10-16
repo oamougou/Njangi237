@@ -10,6 +10,9 @@ describe("routes", () => {
     expect(lireRoute("#/profil")).toEqual({ nom: "profil" });
     expect(lireRoute("#/admin")).toEqual({ nom: "admin" });
     expect(lireRoute("#/amorcer")).toEqual({ nom: "amorcer" });
+    expect(lireRoute("#/groupe/abc-123")).toEqual({ nom: "groupe", id: "abc-123", onglet: "cycle" });
+    expect(lireRoute("#/groupe/abc-123/membres")).toEqual({ nom: "groupe", id: "abc-123", onglet: "membres" });
+    expect(lireRoute("#/groupe/abc-123/inconnu")).toEqual({ nom: "groupe", id: "abc-123", onglet: "cycle" });
     for (const h of ["", "#", "#/", "#/invitation", "#/inconnu"]) expect(lireRoute(h)).toEqual({ nom: "accueil" });
   });
 });
