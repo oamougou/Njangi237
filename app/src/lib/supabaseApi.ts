@@ -2,15 +2,16 @@ import { createClient } from "@supabase/supabase-js";
 import { genererJeton, hashJeton } from "./jeton";
 import { lienApp, lienWhatsApp, messageWhatsApp, type TypeLien } from "./liens";
 import { normaliserTelephone } from "./telephone";
-import type { Api, ApercuRetrait, LienEnvoye, MonGroupe, Personne, VueGroupe } from "./types";
+import { versErreur } from "./erreurs";
+import type { Api, ApercuRetrait, Declaration, LienEnvoye, MonGroupe, Personne, ResumeGroupe, VueGroupe, VueMembre } from "./types";
 
 type SessionServeur = { session: { access_token: string; refresh_token: string } };
 
 export function createSupabaseApi(url: string, key: string): Api {
   const sb = createClient(url, key, { auth: { persistSession: true, autoRefreshToken: true } });
 
-  const must = <T>(r: { data: T | null; error: { message: string } | null }): T => {
-    if (r.error) throw new Error(r.error.message);
+  const must = <T>(r: { data: T | null; error: { message: string; code?: string } | null }): T => {
+    if (r.error) throw versErreur(r.error);
     return r.data as T;
   };
 
@@ -60,14 +61,35 @@ export function createSupabaseApi(url: string, key: string): Api {
     async amorcer(telephone, nom, pin) {
       await ouvrir(await comptes<SessionServeur>({ action: "amorcer", telephone: normaliserTelephone(telephone), nom, pin }));
     },
-    async mesGroupes(): Promise<MonGroupe[]> {
+        async mesGroupes(): Promise<MonGroupe[]> {
       const { data } = await sb.auth.getSession();
       if (!data.session) return [];
       const rows = must(await sb.from("memberships").select("id, role, groups(id, name, type, amount, frequency)")
         .eq("person_id", data.session.user.id).eq("status", "actif")) as unknown as
         { id: string; role: MonGroupe["role"]; groups: MonGroupe["groupe"] }[];
-      return rows.map((r) => ({ membership_id: r.id, role: r.role, groupe: r.groups }))
+      const groupes = rows.map((r) => ({ membership_id: r.id, role: r.role, groupe: r.groups }))
         .sort((a, b) => a.groupe.name.localeCompare(b.groupe.name, "fr"));
+      if (!groupes.length) return groupes;
+      // Résumé : cycle ouvert de chaque groupe et paiements de ces cycles (la RLS ne montre au membre que les siens)
+      const cycles = must(await sb.from("cycles").select("id, group_id, label, due_date, amount_expected")
+        .in("group_id", groupes.map((g) => g.groupe.id)).eq("status", "ouvert")) as
+        { id: string; group_id: string; label: string; due_date: string | null; amount_expected: number }[];
+      const paiements = cycles.length ? must(await sb.from("payments").select("cycle_id, membership_id, status, amount, debt_id")
+        .in("cycle_id", cycles.map((c) => c.id)).is("debt_id", null)) as
+        { cycle_id: string; membership_id: string; status: string; amount: number }[] : [];
+      return groupes.map((g) => {
+        const c = cycles.find((x) => x.group_id === g.groupe.id);
+        const duCycle = paiements.filter((p) => p.cycle_id === c?.id);
+        const miens = duCycle.filter((p) => p.membership_id === g.membership_id);
+        const valide = miens.filter((p) => p.status === "valide").reduce((s, p) => s + p.amount, 0);
+        const resume: ResumeGroupe = {
+          cycle: c?.label ?? null, echeance: c?.due_date ?? null, montant: c?.amount_expected ?? null,
+          monEtat: !c ? null : valide >= c.amount_expected ? "paye" : miens.some((p) => p.status === "declare") ? "en_attente"
+            : miens.some((p) => p.status === "conteste") ? "conteste" : "a_payer",
+          aValider: g.role === "tresorier" ? duCycle.filter((p) => p.status === "declare").length : 0,
+        };
+        return { ...g, resume };
+      });
     },
     async creerGroupe(g) {
       const r = must(await sb.rpc("creer_groupe", {
@@ -127,6 +149,44 @@ export function createSupabaseApi(url: string, key: string): Api {
     async changerRole(membershipId, role) { must(await sb.rpc("changer_role", { p_membership: membershipId, p_role: role })); },
     apercuRetrait: async (membershipId) => must(await sb.rpc("apercu_retrait", { p_membership: membershipId })) as ApercuRetrait,
     async retirerMembre(membershipId) { must(await sb.rpc("retirer_membre", { p_membership: membershipId })); },
+        async chargerVueMembre(groupId): Promise<VueMembre> {
+      const { data } = await sb.auth.getSession();
+      const moi = data.session?.user.id;
+      const [g, m, c, p, d, r, o, rc] = await Promise.all([
+        sb.from("groups").select("id, name, type, amount, frequency, beneficiaries_per_cycle, current_round").eq("id", groupId).maybeSingle(),
+        sb.from("memberships").select("id, display_name, phone, role, status, position, person_id, left_balance, created_at")
+          .eq("group_id", groupId).eq("person_id", moi ?? "").maybeSingle(),
+        sb.from("cycles").select("id, round, number, label, due_date, amount_expected, status, opened_at, closed_at")
+          .eq("group_id", groupId).order("round").order("number"),
+        sb.from("payments").select("id, cycle_id, membership_id, debt_id, amount, method, reference, paid_on, status, contest_reason, created_at")
+          .eq("group_id", groupId).order("created_at"),
+        sb.from("debts").select("id, membership_id, cycle_id, amount, settled_at").eq("group_id", groupId),
+        sb.from("payouts").select("id, cycle_id, round, membership_id, amount_expected, amount, status, paid_on").eq("group_id", groupId),
+        sb.rpc("ordre_tours", { p_group: groupId }),
+        sb.rpc("recouvrement", { p_group: groupId }),
+      ]);
+      const groupe = must(g) as VueMembre["groupe"] | null;
+      const membre = must(m) as VueMembre["moi"] | null;
+      if (!groupe || !membre) throw new Error("Groupe introuvable");
+      return {
+        groupe, moi: membre, cycles: must(c) as VueMembre["cycles"], paiements: must(p) as VueMembre["paiements"],
+        dettes: must(d) as VueMembre["dettes"], remises: must(r) as VueMembre["remises"],
+        ordre: must(o) as VueMembre["ordre"], recouvrement: must(rc) as VueMembre["recouvrement"],
+      };
+    },
+    async declarerPaiement(x: Declaration) {
+      must(await sb.rpc("declarer_paiement", { p_id: x.id, p_cycle: x.cycleId, p_amount: x.montant, p_method: x.moyen,
+        p_reference: x.reference, p_paid_on: x.date, p_debt: x.detteId }));
+    },
+    abonner(groupIds, surChangement) {
+      if (!groupIds.length) return () => {};
+      const filtre = `group_id=in.(${groupIds.join(",")})`;
+      const canal = sb.channel(`njangi-${groupIds.join("-").slice(0, 60)}-${Math.random().toString(36).slice(2, 8)}`);
+      for (const table of ["payments", "cycles", "payouts", "memberships"])
+        canal.on("postgres_changes", { event: "*", schema: "public", table, filter: filtre }, () => surChangement());
+      canal.subscribe();
+      return () => { sb.removeChannel(canal); };
+    },
   };
   return api;
 }
