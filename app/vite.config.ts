@@ -28,5 +28,5 @@ export default defineConfig({
     }),
   ],
   build: { target: "es2020" },
-  test: { environment: "node", include: ["src/**/*.test.ts"] },
+  test: { environment: "node", include: ["src/**/*.test.{ts,tsx}"] },
 });

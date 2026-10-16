@@ -1,6 +1,7 @@
 import type { Route } from "../lib/routes";
 import type { Api, Personne } from "../lib/types";
 import { Admin } from "./Admin";
+import { Groupe } from "./groupe/Groupe";
 import { MesGroupes } from "./MesGroupes";
 import { Profil } from "./Profil";
 
@@ -18,7 +19,9 @@ export function Coque({ api, moi, route, onQuitter }: { api: Api; moi: Personne;
         </nav>
       </header>
       <main className="ecran">
-        {onglet === "accueil" && <MesGroupes api={api} />}
+        {onglet === "accueil" && (route.nom === "groupe"
+          ? <Groupe key={route.id} api={api} id={route.id} onglet={route.onglet} />
+          : <MesGroupes api={api} />)}
         {onglet === "admin" && <Admin api={api} />}
         {onglet === "profil" && <Profil api={api} moi={moi} onQuitter={onQuitter} />}
       </main>
