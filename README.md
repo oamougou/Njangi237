@@ -48,6 +48,10 @@ Le service worker fonctionne « réseau d'abord » : une nouvelle version arrive
 - Espace trésorier (lot 3) : onglets Cycle (ouvrir/clore/rouvrir, valider/contester, espèces, relances WhatsApp, export CSV,
   dettes) et Membres (ajout manuel ou depuis les contacts du téléphone sur Chrome Android, invitations, nouveau PIN, rôles,
   retrait avec aperçu). Tests d'écran sans compte : `npm test` (React Testing Library, fausse Api).
+- Espace membre (lot 4) : « Mes groupes » avec résumé (à payer, en attente, payé), cycle en cours, déclaration de paiement
+  (MoMo, Orange Money, espèces), dettes, ordre des tours en lecture seule avec date estimée, historique. Temps réel
+  (Supabase Realtime) des deux côtés. Hors ligne : dernières données gardées sur le téléphone (localStorage) et
+  déclarations du membre mises en file par personne, envoyées au retour du réseau (identifiant unique : jamais de doublon).
 - Supabase Auth : inscriptions publiques fermées (les comptes ne naissent que par invitation ou amorçage), limite « sign-ins » relevée.
 - Spécification et plans : `docs/superpowers/`.
 

@@ -1,6 +1,6 @@
 import { vi } from "vitest";
 import type { Api, VueGroupe } from "../lib/types";
-import { vueTest } from "./donnees";
+import { vueMembreTest, vueTest } from "./donnees";
 
 /** Fausse Api : chaque méthode est un vi.fn() qui réussit ; chargerGroupe renvoie la vue fournie. */
 export function fauxApi(vue: VueGroupe = vueTest()) {
@@ -15,6 +15,9 @@ export function fauxApi(vue: VueGroupe = vueTest()) {
     ajouterMembre: vi.fn(async () => "m-nouveau"), changerRole: vi.fn(async () => {}),
     apercuRetrait: vi.fn(async () => ({ deja_servi: false, cycles_restants: 1, montant_restant: 5000, dettes: 0 })),
     retirerMembre: vi.fn(async () => {}),
+    chargerVueMembre: vi.fn(async () => vueMembreTest()),
+    declarerPaiement: vi.fn(async () => {}),
+    abonner: vi.fn((_ids: string[], _cb: () => void) => () => {}),
   } satisfies Api;
   return api;
 }
