@@ -61,7 +61,7 @@ export function createSupabaseApi(url: string, key: string): Api {
     async amorcer(telephone, nom, pin) {
       await ouvrir(await comptes<SessionServeur>({ action: "amorcer", telephone: normaliserTelephone(telephone), nom, pin }));
     },
-        async mesGroupes(): Promise<MonGroupe[]> {
+    async mesGroupes(): Promise<MonGroupe[]> {
       const { data } = await sb.auth.getSession();
       if (!data.session) return [];
       const rows = must(await sb.from("memberships").select("id, role, groups(id, name, type, amount, frequency)")
@@ -149,7 +149,7 @@ export function createSupabaseApi(url: string, key: string): Api {
     async changerRole(membershipId, role) { must(await sb.rpc("changer_role", { p_membership: membershipId, p_role: role })); },
     apercuRetrait: async (membershipId) => must(await sb.rpc("apercu_retrait", { p_membership: membershipId })) as ApercuRetrait,
     async retirerMembre(membershipId) { must(await sb.rpc("retirer_membre", { p_membership: membershipId })); },
-        async chargerVueMembre(groupId): Promise<VueMembre> {
+    async chargerVueMembre(groupId): Promise<VueMembre> {
       const { data } = await sb.auth.getSession();
       const moi = data.session?.user.id;
       const [g, m, c, p, d, r, o, rc] = await Promise.all([
