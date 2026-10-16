@@ -215,3 +215,14 @@ Deno.test("amorçage déjà fait : le compte créé est supprimé", async () => 
   await statut(traiter({ action: "amorcer", telephone: "676774643", nom: "Olivier", pin: "123456" }, f.deps), 403, "déjà initialisée");
   assertEquals(f.noms(), ["creerCompte", "amorcer_admin", "supprimerCompte"]);
 });
+
+Deno.test("amorçage : le numéro autorisé est accepté quelle que soit sa forme dans le secret", async () => {
+  for (const forme of ["676774643", "+237 6 76 77 46 43", " 237676774643 "]) {
+    const f = faux({ rpc: { amorcer_admin: { person_id: "u-nouveau" } } });
+    f.deps.telephoneAmorce = forme;
+    assertEquals(await traiter({ action: "amorcer", telephone: "676774643", nom: "Olivier", pin: "123456" }, f.deps), { session: SESSION }, forme);
+  }
+  const f = faux();
+  f.deps.telephoneAmorce = "pas un numéro";
+  await statut(traiter({ action: "amorcer", telephone: "676774643", nom: "Olivier", pin: "123456" }, f.deps), 403, "Amorçage non autorisé");
+});
