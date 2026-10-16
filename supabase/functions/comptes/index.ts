@@ -1,5 +1,6 @@
-// Fonction serveur « comptes » : invitations, nouveau PIN, connexion par numéro + PIN.
-// Sans JWT (verify_jwt = false) : l'authentification est faite ici (jeton du lien ou PIN avec blocage).
+// Fonction serveur « comptes » : invitations, nouveau PIN, connexion par numéro + PIN, changement de PIN, amorçage.
+// Sans JWT obligatoire (verify_jwt = false) : l'authentification est faite ici (jeton du lien, PIN avec blocage,
+// ou jeton de session vérifié pour changer_pin).
 import { depsSupabase } from "./deps.ts";
 import { CORS, ErreurMetier, reponse } from "./http.ts";
 import { traiter } from "./logique.ts";
@@ -9,7 +10,8 @@ Deno.serve(async (req) => {
   if (req.method !== "POST") return reponse({ error: "Méthode non autorisée" }, 405);
   try {
     const body = await req.json().catch(() => ({}));
-    return reponse(await traiter(body, depsSupabase()));
+    const jwt = req.headers.get("authorization")?.replace(/^Bearer\s+/i, "") || undefined;
+    return reponse(await traiter(body, depsSupabase(), jwt));
   } catch (e) {
     if (e instanceof ErreurMetier) return reponse({ error: e.message }, e.status);
     console.error(e);

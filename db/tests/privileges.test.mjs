@@ -46,8 +46,8 @@ test("temps réel : les quatre tables suivies par l'application", async () => {
     ["cycles", "memberships", "payments", "payouts"]);
 });
 
-const SERVICE = ["enregistrer_echec", "enregistrer_succes", "finaliser_invitation", "finaliser_nouveau_pin",
-  "lire_invitation", "verifier_blocage"];
+const SERVICE = ["amorcer_admin", "annuler_essai", "compte_auth_orphelin", "enregistrer_succes", "finaliser_invitation",
+  "finaliser_nouveau_pin", "lire_invitation", "reserver_essai"];
 
 test("les fonctions de la fonction serveur comptes sont exécutables par service_role", async () => {
   const rows = (await executable("service_role")).map((r) => r.proname);
