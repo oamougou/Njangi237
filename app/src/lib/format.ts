@@ -6,3 +6,6 @@ export const dateCourte = (iso: string) => {
   const [a, m, j] = iso.slice(0, 10).split("-");
   return `${j}/${m}/${a}`;
 };
+
+/** « de Bob », « d'Alice » : élision devant une voyelle ou un h. */
+export const de = (nom: string) => (/^[aeiouyhàâäéèêëîïôöûüù]/i.test(nom) ? `d'${nom}` : `de ${nom}`);
