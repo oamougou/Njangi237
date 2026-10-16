@@ -17,7 +17,8 @@ begin
     raise exception 'Identifiant de paiement déjà utilisé' using errcode = '23505';
   end if;
 
-  select * into v_c from cycles where id = p_cycle;
+  -- « for share » : bloque une clôture simultanée (clore_cycle prend « for update »)
+  select * into v_c from cycles where id = p_cycle for share;
   if not found then raise exception 'Cycle introuvable' using errcode = 'P0002'; end if;
   select id into v_m from memberships where group_id = v_c.group_id and person_id = auth.uid() and status = 'actif';
   if v_m is null then raise exception 'Vous n''êtes pas membre de ce groupe' using errcode = '42501'; end if;
@@ -34,6 +35,9 @@ begin
       raise exception 'Dette introuvable' using errcode = 'P0002';
     end if;
     if v_d.settled_at is not null then raise exception 'Cette dette est déjà réglée' using errcode = 'P0001'; end if;
+    if p_amount < v_d.amount then
+      raise exception 'Le règlement doit couvrir toute la dette (% FCFA)', v_d.amount using errcode = '22023';
+    end if;
   end if;
 
   begin
@@ -41,6 +45,11 @@ begin
     values (p_id, v_c.group_id, p_cycle, v_m, p_debt, p_amount, p_method, nullif(btrim(p_reference), ''),
             coalesce(p_paid_on, current_date), 'declare', auth.uid());
   exception when unique_violation then
+    -- Deux envois simultanés du même identifiant : le second est un doublon, pas une erreur
+    select * into v_old from payments where id = p_id;
+    if found and v_old.declared_by = auth.uid() then
+      return jsonb_build_object('ok', true, 'duplicate', true, 'status', v_old.status);
+    end if;
     raise exception 'Un paiement est déjà enregistré pour ce cycle' using errcode = '23505';
   end;
   return jsonb_build_object('ok', true, 'duplicate', false, 'status', 'declare');
@@ -62,12 +71,13 @@ begin
   select * into v_m from memberships where id = p_membership;
   if not found then raise exception 'Membre introuvable' using errcode = 'P0002'; end if;
   perform exiger_tresorier(v_m.group_id);
-  select * into v_c from cycles where id = p_cycle;
+  select * into v_c from cycles where id = p_cycle for share;
   if not found or v_c.group_id <> v_m.group_id then raise exception 'Cycle introuvable' using errcode = 'P0002'; end if;
-  if v_m.status = 'retire' then raise exception 'Ce membre est retiré' using errcode = 'P0001'; end if;
   if p_amount is null or p_amount <= 0 then raise exception 'Montant invalide' using errcode = '22023'; end if;
 
   if p_debt is null then
+    -- Un membre retiré ne cotise plus, mais peut encore régler ses dettes
+    if v_m.status = 'retire' then raise exception 'Ce membre est retiré' using errcode = 'P0001'; end if;
     if v_c.status <> 'ouvert' then raise exception 'Ce cycle est clos' using errcode = 'P0001'; end if;
   else
     select * into v_d from debts where id = p_debt;
@@ -75,6 +85,9 @@ begin
       raise exception 'Dette introuvable' using errcode = 'P0002';
     end if;
     if v_d.settled_at is not null then raise exception 'Cette dette est déjà réglée' using errcode = 'P0001'; end if;
+    if p_amount < v_d.amount then
+      raise exception 'Le règlement doit couvrir toute la dette (% FCFA)', v_d.amount using errcode = '22023';
+    end if;
   end if;
 
   begin
@@ -83,6 +96,10 @@ begin
     values (p_id, v_m.group_id, p_cycle, p_membership, p_debt, p_amount, 'especes', coalesce(p_paid_on, current_date),
             'valide', auth.uid(), auth.uid(), now());
   exception when unique_violation then
+    select * into v_old from payments where id = p_id;
+    if found and v_old.declared_by = auth.uid() then
+      return jsonb_build_object('ok', true, 'duplicate', true, 'status', v_old.status);
+    end if;
     raise exception 'Un paiement est déjà enregistré pour ce cycle' using errcode = '23505';
   end;
   if p_debt is not null then update debts set settled_at = now() where id = p_debt; end if;
@@ -99,6 +116,10 @@ begin
   if v_p.status <> 'declare' then
     raise exception 'Ce paiement n''est pas en attente de validation' using errcode = 'P0001';
   end if;
+  -- Un paiement ordinaire ne peut pas entrer dans un cycle déjà clos (les dettes y sont déjà calculées)
+  if v_p.debt_id is null and exists (select 1 from cycles where id = v_p.cycle_id and status = 'clos') then
+    raise exception 'Ce cycle est clos' using errcode = 'P0001';
+  end if;
   update payments set status = 'valide', validated_by = auth.uid(), validated_at = now() where id = p_payment;
   if v_p.debt_id is not null then update debts set settled_at = now() where id = v_p.debt_id; end if;
 end $$;
@@ -113,7 +134,8 @@ begin
   if length(btrim(coalesce(p_reason, ''))) = 0 then raise exception 'Motif obligatoire' using errcode = '22023'; end if;
   if v_p.status = 'conteste' then raise exception 'Ce paiement est déjà contesté' using errcode = 'P0001'; end if;
   select status into v_cycle_status from cycles where id = v_p.cycle_id;
-  if v_p.debt_id is null and v_cycle_status = 'clos' then
+  -- Cycle clos : un paiement validé est figé, mais une déclaration arrivée trop tard doit pouvoir être écartée
+  if v_p.debt_id is null and v_cycle_status = 'clos' and v_p.status = 'valide' then
     raise exception 'Ce cycle est clos' using errcode = 'P0001';
   end if;
 

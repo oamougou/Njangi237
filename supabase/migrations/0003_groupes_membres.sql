@@ -107,10 +107,13 @@ end $$;
 
 create or replace function changer_role(p_membership uuid, p_role member_role) returns void
 language plpgsql security definer set search_path = public as $$
-declare v_m memberships%rowtype;
+declare v_m memberships%rowtype; v_group uuid;
 begin
-  select * into v_m from memberships where id = p_membership for update;
+  -- Verrou du groupe : deux trésoriers qui se rétrogradent en même temps ne peuvent pas laisser le groupe sans trésorier
+  select group_id into v_group from memberships where id = p_membership;
   if not found then raise exception 'Membre introuvable' using errcode = 'P0002'; end if;
+  perform 1 from groups where id = v_group for update;
+  select * into v_m from memberships where id = p_membership for update;
   perform exiger_tresorier(v_m.group_id);
   if v_m.status = 'retire' then raise exception 'Ce membre est retiré' using errcode = 'P0001'; end if;
   if v_m.role = 'tresorier' and p_role = 'membre' then
@@ -131,6 +134,7 @@ declare
   v_servi    boolean;
   v_attente  int;
   v_restants int := 0;
+  v_dettes   int;
 begin
   select * into v_m from memberships where id = p_membership;
   if not found then raise exception 'Membre introuvable' using errcode = 'P0002'; end if;
@@ -153,16 +157,21 @@ begin
     v_restants := v_restants + 1;
   end if;
 
+  select coalesce(sum(amount), 0)::int into v_dettes from debts where membership_id = v_m.id and settled_at is null;
+
   return jsonb_build_object('deja_servi', v_servi, 'cycles_restants', v_restants,
-                            'montant_restant', v_restants * v_g.amount);
+                            'montant_restant', v_restants * v_g.amount, 'dettes', v_dettes);
 end $$;
 
 create or replace function retirer_membre(p_membership uuid) returns jsonb
 language plpgsql security definer set search_path = public as $$
-declare v_m memberships%rowtype; v_apercu jsonb;
+declare v_m memberships%rowtype; v_apercu jsonb; v_group uuid;
 begin
-  select * into v_m from memberships where id = p_membership for update;
+  -- Même verrou de groupe que ouvrir_cycle et changer_role : retrait, désignation et rétrogradation s'excluent
+  select group_id into v_group from memberships where id = p_membership;
   if not found then raise exception 'Membre introuvable' using errcode = 'P0002'; end if;
+  perform 1 from groups where id = v_group for update;
+  select * into v_m from memberships where id = p_membership for update;
   perform exiger_tresorier(v_m.group_id);
   if v_m.status = 'retire' then raise exception 'Ce membre est déjà retiré' using errcode = 'P0001'; end if;
   if v_m.role = 'tresorier' then perform garder_un_tresorier(v_m.group_id, v_m.id); end if;
@@ -172,8 +181,13 @@ begin
   end if;
 
   v_apercu := apercu_retrait(p_membership);
-  update memberships set status = 'retire', left_at = now(), position = null where id = p_membership;
+  -- Ce qu'il doit encore est figé : recalculé plus tard, l'aperçu diminuerait à mesure que les autres sont servis
+  update memberships set status = 'retire', left_at = now(), position = null,
+                         left_balance = (v_apercu ->> 'montant_restant')::int
+   where id = p_membership;
   perform journaliser(v_m.group_id, 'membre_retire', jsonb_build_object('nom', v_m.display_name), true);
+  -- Les montants dus ne regardent que les trésoriers
+  perform journaliser(v_m.group_id, 'solde_depart', jsonb_build_object('nom', v_m.display_name) || v_apercu, false);
   return v_apercu;
 end $$;
 
