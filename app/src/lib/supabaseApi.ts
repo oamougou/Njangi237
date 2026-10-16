@@ -4,7 +4,7 @@ import { lienApp, lienWhatsApp, messageWhatsApp, type TypeLien } from "./liens";
 import { normaliserTelephone } from "./telephone";
 import { ErreurReseau, versErreur } from "./erreurs";
 import { resumerGroupe } from "./resume";
-import type { Api, ApercuRetrait, Declaration, LienEnvoye, MonGroupe, Personne, VueGroupe, VueMembre } from "./types";
+import type { Api, ApercuRetrait, Declaration, EntreeJournal, LienEnvoye, MonGroupe, Personne, VueGroupe, VueMembre } from "./types";
 
 type SessionServeur = { session: { access_token: string; refresh_token: string } };
 
@@ -105,19 +105,21 @@ export function createSupabaseApi(url: string, key: string): Api {
     async chargerGroupe(groupId): Promise<VueGroupe> {
       const { data } = await sb.auth.getSession();
       const moi = data.session?.user.id;
-      const [g, m, c, d] = await Promise.all([
-        sb.from("groups").select("id, name, type, amount, frequency, beneficiaries_per_cycle, current_round").eq("id", groupId).maybeSingle(),
+      const [g, m, c, d, r] = await Promise.all([
+        sb.from("groups").select("id, name, type, amount, frequency, beneficiaries_per_cycle, current_round, order_locked").eq("id", groupId).maybeSingle(),
         sb.from("memberships").select("id, display_name, phone, role, status, position, person_id, left_balance, created_at")
           .eq("group_id", groupId).order("position", { nullsFirst: false }).order("display_name"),
         sb.from("cycles").select("id, round, number, label, due_date, amount_expected, status, opened_at, closed_at")
           .eq("group_id", groupId).order("round").order("number"),
         sb.from("debts").select("id, membership_id, cycle_id, amount, settled_at").eq("group_id", groupId),
+        sb.from("payouts").select("id, cycle_id, round, membership_id, amount_expected, amount, status, paid_on").eq("group_id", groupId),
       ]);
       const groupe = must(g) as VueGroupe["groupe"] | null;
       if (!groupe) throw new Error("Groupe introuvable");
       const membres = must(m) as VueGroupe["membres"];
       const cycles = must(c) as VueGroupe["cycles"];
       const dettes = must(d) as VueGroupe["dettes"];
+      const remises = must(r) as VueGroupe["remises"];
       // Paiements bornés (la limite de 1 000 lignes de l'API couperait les plus récents) :
       // cycle ouvert, dernier cycle clos, et règlements des dettes encore ouvertes.
       const ouvert = cycles.find((x) => x.status === "ouvert");
@@ -132,7 +134,7 @@ export function createSupabaseApi(url: string, key: string): Api {
         .eq("group_id", groupId).or(filtres.join(",")).order("created_at")) as VueGroupe["paiements"] : [];
       return {
         role: membres.find((x) => x.person_id === moi && x.status === "actif")?.role ?? "membre",
-        groupe, membres, cycles, paiements, dettes,
+        groupe, membres, cycles, paiements, dettes, remises,
       };
     },
     async ouvrirCycle(groupId, libelle, echeance) {
@@ -155,7 +157,7 @@ export function createSupabaseApi(url: string, key: string): Api {
       const { data } = await sb.auth.getSession();
       const moi = data.session?.user.id;
       const [g, m, c, p, d, r, o, rc] = await Promise.all([
-        sb.from("groups").select("id, name, type, amount, frequency, beneficiaries_per_cycle, current_round").eq("id", groupId).maybeSingle(),
+        sb.from("groups").select("id, name, type, amount, frequency, beneficiaries_per_cycle, current_round, order_locked").eq("id", groupId).maybeSingle(),
         sb.from("memberships").select("id, display_name, phone, role, status, position, person_id, left_balance, created_at")
           .eq("group_id", groupId).eq("person_id", moi ?? "").maybeSingle(),
         sb.from("cycles").select("id, round, number, label, due_date, amount_expected, status, opened_at, closed_at")
@@ -188,6 +190,22 @@ export function createSupabaseApi(url: string, key: string): Api {
         canal.on("postgres_changes", { event: "*", schema: "public", table, filter: filtre }, () => surChangement());
       canal.subscribe();
       return () => { sb.removeChannel(canal); };
+    },
+    async ordonnerTours(groupId, ordre) { must(await sb.rpc("ordonner_tours", { p_group: groupId, p_order: ordre })); },
+    async tirerAuSort(groupId) { return must(await sb.rpc("tirer_au_sort", { p_group: groupId })) as string[]; },
+    async echangerTours(a, b) { must(await sb.rpc("echanger_tours", { p_a: a, p_b: b })); },
+    async remplacerBeneficiaire(remiseId, membershipId) {
+      must(await sb.rpc("remplacer_beneficiaire", { p_payout: remiseId, p_membership: membershipId }));
+    },
+    async enregistrerRemise(remiseId, montant, moyen, reference) {
+      return must(await sb.rpc("enregistrer_remise", { p_payout: remiseId, p_amount: montant, p_method: moyen, p_reference: reference })) as
+        { ecart: number };
+    },
+    async nouveauTour(groupId) { return must(await sb.rpc("nouveau_tour", { p_group: groupId })) as number; },
+    async lireJournal(groupId, avant) {
+      const lignes = must(await sb.rpc("lire_journal", { p_group: groupId, p_avant: avant ?? null, p_limite: 50 })) as
+        (Omit<EntreeJournal, "id"> & { id: number | string })[];
+      return lignes.map((e) => ({ ...e, id: Number(e.id) }));   // bigint : PostgREST peut le renvoyer en texte
     },
   };
   return api;
