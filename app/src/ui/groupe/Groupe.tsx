@@ -5,7 +5,9 @@ import { useVue } from "../../lib/useVue";
 import { dateCourte } from "../../lib/format";
 import { EspaceMembre } from "../membre/EspaceMembre";
 import { OngletCycle } from "./OngletCycle";
+import { OngletJournal } from "./OngletJournal";
 import { OngletMembres } from "./OngletMembres";
+import { OngletTours } from "./OngletTours";
 import { Avatar } from "../Decor";
 
 /** Espace d'un groupe : trésorier (onglets) ou membre. Mémoire locale, temps réel, lecture seule hors ligne. */
@@ -32,10 +34,16 @@ export function Groupe({ api, id, onglet, personId, stockage }: {
       <nav className="onglets">
         <a href={`#/groupe/${id}`} className={onglet === "cycle" ? "actif" : ""}>Cycle</a>
         <a href={`#/groupe/${id}/membres`} className={onglet === "membres" ? "actif" : ""}>Membres</a>
+        {vue.groupe.type === "tontine" && <a href={`#/groupe/${id}/tours`} className={onglet === "tours" ? "actif" : ""}>Tours</a>}
+        <a href={`#/groupe/${id}/journal`} className={onglet === "journal" ? "actif" : ""}>Journal</a>
       </nav>
       {/* Un fieldset désactivé désactive d'un coup tous les boutons et champs : lecture seule hors ligne */}
       <fieldset className="sans-cadre" disabled={horsLigne}>
-        {onglet === "cycle" ? <OngletCycle api={api} vue={vue} recharger={recharger} /> : <OngletMembres api={api} vue={vue} recharger={recharger} />}
+        {onglet === "membres" ? <OngletMembres api={api} vue={vue} recharger={recharger} />
+          : onglet === "tours" && vue.groupe.type === "tontine" ? <OngletTours api={api} vue={vue} recharger={recharger} />
+          : onglet === "journal" ? <OngletJournal key={`${vue.cycles.length}-${vue.remises.filter((r) => r.status === "remis").length}`}
+            api={api} groupId={id} />
+          : <OngletCycle api={api} vue={vue} recharger={recharger} />}
       </fieldset>
     </section>
   );
