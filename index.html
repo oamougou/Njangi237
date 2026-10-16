@@ -508,6 +508,8 @@
   function renderGroupDetail(){
     var g = findGroup(state.activeGroupId);
     if(!g){ showScreen("screen-groups"); return; }
+    if(remindQueue && remindQueue.key!==g.id+"|"+state.activeCycleId){ remindQueue = null; }
+    if(!remindQueue) updateRemindBtn(0);
 
     document.getElementById("groupName").textContent = g.nom;
     document.getElementById("groupMeta").textContent =
@@ -582,6 +584,8 @@
           var c = findCycle(g, state.activeCycleId);
           var existing = c.paiements[mid];
           if(existing && existing.statut==="paye"){
+            var mb = g.membres.find(function(x){ return x.id===mid; });
+            if(!confirm("Annuler le paiement de "+mb.nom+" ("+fmt(existing.montant||g.montant)+") pour ce cycle ?")) return;
             existing.statut = "retard";
             save(); renderGroupDetail();
           } else {
@@ -701,8 +705,23 @@
       return !(p && p.statut==="paye");
     });
     if(late.length===0){ toast("Personne en retard 🎉"); return; }
-    late.forEach(function(m, i){ setTimeout(function(){ sendReminder(g, m); }, i*400); });
+    // Un rappel par toucher : les navigateurs bloquent les fenêtres ouvertes sans geste de l'utilisateur
+    var key = g.id+"|"+c.id;
+    if(!remindQueue || remindQueue.key!==key){ remindQueue = { key:key, ids: late.map(function(m){ return m.id; }) }; }
+    var next = null;
+    while(remindQueue.ids.length && !next){
+      var id = remindQueue.ids.shift();
+      next = late.find(function(m){ return m.id===id; }) || null;
+    }
+    if(next) sendReminder(g, next);
+    updateRemindBtn(remindQueue.ids.length);
+    if(!remindQueue.ids.length) remindQueue = null;
   });
+  var remindQueue = null;
+  function updateRemindBtn(left){
+    document.getElementById("remindAllBtn").textContent =
+      left>0 ? "Relancer le suivant ("+left+" restant"+(left>1?"s":"")+")" : "Relancer les retardataires";
+  }
 
   /* ---------- Création groupe ---------- */
   document.getElementById("fabAddGroup").addEventListener("click", function(){

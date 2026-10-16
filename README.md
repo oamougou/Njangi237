@@ -20,6 +20,18 @@ MVP fonctionnel, 100% hors ligne, inspiré du même principe que ta PWA NetParta
 - Sauvegarder / restaurer toutes les données en JSON (backup manuel)
 - Toutes les données restent sur l'appareil (`localStorage`) - aucun serveur, aucune donnée envoyée en ligne
 
+## En ligne
+
+**https://njangi237.pages.dev** (Cloudflare Pages). L'ouvrir sur le téléphone puis menu du navigateur → « Ajouter à l'écran d'accueil ».
+
+Republier après une modification (depuis ce dossier, après `npx wrangler login` une seule fois) :
+
+```bash
+npx wrangler pages deploy . --project-name njangi237 --branch main
+```
+
+Le service worker fonctionne « réseau d'abord » : une nouvelle version arrive dès que le téléphone a du réseau, la version en cache sert hors ligne. Incrémenter `CACHE` dans `sw.js` à chaque version.
+
 ## Utilisation immédiate (sans hébergement)
 Tu peux ouvrir `index.html` directement dans le navigateur du téléphone (double-clic ou via une appli de gestion de fichiers) : l'app fonctionne intégralement. Seule limite : l'installation "Ajouter à l'écran d'accueil" avec icône dédiée et le cache hors-ligne du service worker demandent que les fichiers soient servis en `http(s)://`, pas en `file://` (limitation standard des navigateurs Android/iOS).
 
