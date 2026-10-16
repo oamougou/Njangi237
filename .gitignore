@@ -1,3 +1,5 @@
 .wrangler/
 node_modules/
 .superpowers/
+app/dist/
+app/.env
