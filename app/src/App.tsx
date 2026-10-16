@@ -4,6 +4,7 @@ import { lireRoute } from "./lib/routes";
 import type { Personne } from "./lib/types";
 import { Connexion } from "./ui/Connexion";
 import { Coque } from "./ui/Coque";
+import { Amorcage } from "./ui/Amorcage";
 import { Invitation } from "./ui/Invitation";
 
 export default function App() {
@@ -23,6 +24,7 @@ export default function App() {
 
   if (route.nom === "invitation" || route.nom === "nouveau-pin")
     return <Invitation api={api} jeton={route.jeton} mode={route.nom} onFini={() => { location.hash = "#/"; rafraichir(); }} />;
+  if (route.nom === "amorcer" && !moi) return <Amorcage api={api} onFini={() => { location.hash = "#/admin"; rafraichir(); }} />;
   if (moi === undefined) return <main className="ecran etroit"><p className="note">Chargement…</p></main>;
   if (!moi) return <Connexion api={api} onConnecte={rafraichir} />;
   const a = api;   // non nul ici ; figé pour la fonction différée ci-dessous

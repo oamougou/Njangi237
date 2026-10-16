@@ -9,6 +9,7 @@ describe("routes", () => {
   it("écrans et valeur par défaut", () => {
     expect(lireRoute("#/profil")).toEqual({ nom: "profil" });
     expect(lireRoute("#/admin")).toEqual({ nom: "admin" });
+    expect(lireRoute("#/amorcer")).toEqual({ nom: "amorcer" });
     for (const h of ["", "#", "#/", "#/invitation", "#/inconnu"]) expect(lireRoute(h)).toEqual({ nom: "accueil" });
   });
 });

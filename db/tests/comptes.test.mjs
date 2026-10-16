@@ -95,20 +95,60 @@ test("PIN oublié : lien de 24 h, usage unique, blocage remis à zéro", () => s
   await assert.rejects(svc(db, "finaliser_invitation", [H("b"), P.alice, null]), /Lien invalide ou expiré/);
 }));
 
-test("blocage après 5 PIN faux, levé par une connexion réussie", () => scenario(db, async () => {
+test("réservation atomique : 5 essais, le cinquième pose le blocage, le sixième est refusé", () => scenario(db, async () => {
   const tel = "237690000003";
-  for (let i = 1; i <= 4; i++) assert.deepEqual(await svc(db, "enregistrer_echec", [tel]), { echecs: i, bloque_jusqu: null });
-  assert.equal(await svc(db, "verifier_blocage", [tel]), null);
-  const r = await svc(db, "enregistrer_echec", [tel]);
-  assert.ok(r.bloque_jusqu);
-  assert.ok(await svc(db, "verifier_blocage", [tel]));
+  for (let i = 1; i <= 4; i++) assert.deepEqual(await svc(db, "reserver_essai", [tel]), { autorise: true, bloque_jusqu: null });
+  const cinquieme = await svc(db, "reserver_essai", [tel]);
+  assert.equal(cinquieme.autorise, true);
+  assert.ok(cinquieme.bloque_jusqu);
+  const sixieme = await svc(db, "reserver_essai", [tel]);
+  assert.equal(sixieme.autorise, false);
+  assert.ok(sixieme.bloque_jusqu);
   await svc(db, "enregistrer_succes", [tel]);
-  assert.equal(await svc(db, "verifier_blocage", [tel]), null);
+  assert.deepEqual(await svc(db, "reserver_essai", [tel]), { autorise: true, bloque_jusqu: null });
 }));
 
 test("un blocage expiré repart de zéro", () => scenario(db, async () => {
   const tel = "237690000003";
   await db.exec(`insert into login_attempts(phone, failures, locked_until) values ('${tel}', 0, now() - interval '1 minute')`);
-  assert.equal(await svc(db, "verifier_blocage", [tel]), null);
-  assert.deepEqual(await svc(db, "enregistrer_echec", [tel]), { echecs: 1, bloque_jusqu: null });
+  assert.deepEqual(await svc(db, "reserver_essai", [tel]), { autorise: true, bloque_jusqu: null });
+  assert.deepEqual(await q(`select failures, locked_until from login_attempts`), [{ failures: 1, locked_until: null }]);
+}));
+
+test("un essai interrompu par une panne d'Auth est rendu", () => scenario(db, async () => {
+  const tel = "237690000003";
+  await svc(db, "reserver_essai", [tel]);
+  await svc(db, "reserver_essai", [tel]);
+  await svc(db, "annuler_essai", [tel]);
+  assert.equal((await q(`select failures from login_attempts`))[0].failures, 1);
+}));
+
+test("compte Auth orphelin (sans personne) retrouvé par son e-mail, jamais un compte rattaché", () => scenario(db, async () => {
+  await seedPilot(db);
+  await nouveauCompte(u(9), "237690000009");
+  assert.equal(await svc(db, "compte_auth_orphelin", ["237690000009@njangi237.local"]), u(9));
+  assert.equal(await svc(db, "compte_auth_orphelin", ["237690000003@njangi237.local"]), null);
+  await assert.rejects(rpc(db, P.alice, "compte_auth_orphelin", ["237690000009@njangi237.local"]), /permission denied/);
+}));
+
+test("amorçage : le premier administrateur une seule fois", () => scenario(db, async () => {
+  await nouveauCompte(u(8), "237699000008");
+  assert.deepEqual(await svc(db, "amorcer_admin", [u(8), "237699000008", "Olivier"]), { person_id: u(8) });
+  assert.deepEqual(await q(`select full_name from people where id = '${u(8)}'`), [{ full_name: "Olivier" }]);
+  assert.equal((await q(`select count(*)::int n from platform_admins`))[0].n, 1);
+  await nouveauCompte(u(7), "237699000007");
+  await assert.rejects(svc(db, "amorcer_admin", [u(7), "237699000007", "Intrus"]), /déjà initialisée/);
+}));
+
+test("nouveau PIN d'un trésorier d'un autre groupe : réservé à ce groupe-là (ou à l'administrateur)", () => scenario(db, async () => {
+  await seedPilot(db);
+  // Alice est aussi trésorière de la cotisation de Xavier
+  await db.exec(`insert into memberships(id, group_id, person_id, display_name, phone, role, status, position)
+    values ('${u(206)}','${G.autre}','${P.alice}','Alice','237690000003','tresorier','actif',2)`);
+  await assert.rejects(rpc(db, P.tres, "inviter", [M.alice, H("a"), "reinitialisation"]), /trésorière dans un autre groupe/);
+  await rpc(db, P.xavier, "inviter", [u(206), H("b"), "reinitialisation"]);
+  await rpc(db, P.admin, "inviter", [M.alice, H("c"), "reinitialisation"]);
+  await svc(db, "finaliser_nouveau_pin", [H("c")]);
+  // tracé dans tous les groupes de la personne
+  assert.equal((await q(`select count(distinct group_id)::int n from journal where action = 'pin_reinitialise'`))[0].n, 2);
 }));

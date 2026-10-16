@@ -23,6 +23,8 @@ export interface Api {
   accepter(jeton: string, pin: string, nom?: string): Promise<void>;
   nouveauPin(jeton: string, pin: string): Promise<void>;
   changerPin(ancien: string, nouveau: string): Promise<void>;
+  /** Création unique du premier administrateur (numéro autorisé côté serveur). */
+  amorcer(telephone: string, nom: string, pin: string): Promise<void>;
   mesGroupes(): Promise<MonGroupe[]>;
   creerGroupe(g: NouveauGroupe): Promise<LienEnvoye>;
   inviter(membershipId: string, type: TypeLien): Promise<LienEnvoye>;

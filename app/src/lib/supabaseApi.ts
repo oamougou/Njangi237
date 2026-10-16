@@ -55,13 +55,10 @@ export function createSupabaseApi(url: string, key: string): Api {
     apercu: (jeton) => comptes({ action: "apercu", jeton }),
     async accepter(jeton, pin, nom) { await ouvrir(await comptes<SessionServeur>({ action: "accepter", jeton, pin, nom })); },
     async nouveauPin(jeton, pin) { await ouvrir(await comptes<SessionServeur>({ action: "nouveau_pin", jeton, pin })); },
-    async changerPin(ancien, nouveau) {
-      const moi = await api.session();
-      if (!moi) throw new Error("Session expirée : reconnectez-vous");
-      // Vérifie l'ancien PIN par la fonction serveur, donc avec le blocage après 5 essais
-      await comptes({ action: "connexion", telephone: moi.phone, pin: ancien });
-      const { error } = await sb.auth.updateUser({ password: nouveau });
-      if (error) throw new Error("Changement de PIN impossible, réessayez");
+    // Le serveur vérifie l'ancien PIN (avec le blocage) et dérive le nouveau mot de passe : rien ne passe par auth.updateUser
+    async changerPin(ancien, nouveau) { await ouvrir(await comptes<SessionServeur>({ action: "changer_pin", ancien, nouveau })); },
+    async amorcer(telephone, nom, pin) {
+      await ouvrir(await comptes<SessionServeur>({ action: "amorcer", telephone: normaliserTelephone(telephone), nom, pin }));
     },
     async mesGroupes(): Promise<MonGroupe[]> {
       const { data } = await sb.auth.getSession();
