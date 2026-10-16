@@ -5,6 +5,7 @@ export interface Personne { id: string; phone: string; full_name: string; admin:
 export interface MonGroupe {
   membership_id: string; role: RoleGroupe;
   groupe: { id: string; name: string; type: string; amount: number; frequency: string };
+  resume?: ResumeGroupe;
 }
 export interface Apercu { type: TypeLien; groupe: string; invite_par: string | null; nom: string; compte_existant: boolean }
 export interface NouveauGroupe {
@@ -34,6 +35,30 @@ export interface Paiement {
 export interface Dette { id: string; membership_id: string; cycle_id: string; amount: number; settled_at: string | null }
 export interface VueGroupe { role: RoleGroupe; groupe: Groupe; membres: Membre[]; cycles: Cycle[]; paiements: Paiement[]; dettes: Dette[] }
 export interface ApercuRetrait { deja_servi: boolean; cycles_restants: number; montant_restant: number; dettes: number }
+/** Ligne renvoyée par ordre_tours (sans numéro de téléphone). */
+export interface OrdreTour {
+  membership_id: string; display_name: string; role: RoleGroupe; status: Membre["status"];
+  position: number | null; is_me: boolean; servi: boolean; prevu: boolean;
+}
+export interface Recouvrement { cycle_id: string; membres: number; attendu: number; payes: number; collecte: number }
+export interface Remise {
+  id: string; cycle_id: string; round: number; membership_id: string; amount_expected: number;
+  amount: number | null; status: "prevu" | "remis"; paid_on: string | null;
+}
+export interface VueMembre {
+  groupe: Groupe; moi: Membre; cycles: Cycle[]; paiements: Paiement[]; dettes: Dette[];
+  remises: Remise[]; ordre: OrdreTour[]; recouvrement: Recouvrement[];
+}
+/** Déclaration d'un membre ; l'identifiant est tiré à la saisie pour que les renvois ne créent pas de doublon. */
+export interface Declaration {
+  id: string; groupId: string; cycleId: string; montant: number; moyen: MoyenPaiement;
+  reference: string | null; date: string; detteId: string | null;
+}
+/** Résumé affiché sur la carte d'un groupe dans « Mes groupes ». */
+export interface ResumeGroupe {
+  cycle: string | null; echeance: string | null; montant: number | null;
+  monEtat: "paye" | "en_attente" | "conteste" | "a_payer" | null; aValider: number;
+}
 
 /** Contrat unique de l'application (le mode démo du lot 6 l'implémentera aussi). */
 export interface Api {
@@ -62,4 +87,9 @@ export interface Api {
   changerRole(membershipId: string, role: RoleGroupe): Promise<void>;
   apercuRetrait(membershipId: string): Promise<ApercuRetrait>;
   retirerMembre(membershipId: string): Promise<void>;
+  // Membre (lot 4)
+  chargerVueMembre(groupId: string): Promise<VueMembre>;
+  declarerPaiement(d: Declaration): Promise<void>;
+  /** Temps réel : appelle `surChangement` à chaque modification des données de ces groupes ; renvoie la fonction d'arrêt. */
+  abonner(groupIds: string[], surChangement: () => void): () => void;
 }
