@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { estimerTour } from "./tours";
-import type { Cycle, OrdreTour } from "./types";
+import { deplacer, estimerTour, etatTour, montantPropose } from "./tours";
+import type { Cycle, Membre, OrdreTour, Remise } from "./types";
 
 const o = (pos: number, extra: Partial<OrdreTour> = {}): OrdreTour => ({ membership_id: `m${pos}`, display_name: `M${pos}`, role: "membre",
   status: "actif", position: pos, is_me: false, servi: false, prevu: false, ...extra });
@@ -32,5 +32,44 @@ describe("estimerTour", () => {
     expect(e.cyclesAvant).toBe(1);
     expect(e.date?.toISOString().slice(0, 10)).toBe("2026-10-16");
     expect(estimerTour([o(1, { is_me: true, prevu: true })], 1, "mensuelle", null)?.cyclesAvant).toBe(1);
+  });
+});
+
+describe("réglage et état du tour", () => {
+  const m = (id: string, position: number | null, status: Membre["status"] = "actif"): Membre => ({
+    id, display_name: id.toUpperCase(), phone: "", role: "membre", status, position, person_id: null, left_balance: null,
+    created_at: "2026-09-01T00:00:00Z" });
+  const r = (id: string, membre: string, status: Remise["status"], round = 1): Remise => ({
+    id, cycle_id: "c", round, membership_id: membre, amount_expected: 20000, amount: status === "remis" ? 20000 : null,
+    status, paid_on: status === "remis" ? "2026-10-30" : null });
+
+  it("deplacer : monte, descend, ignore les bords", () => {
+    expect(deplacer(["a", "b", "c"], 1, -1)).toEqual(["b", "a", "c"]);
+    expect(deplacer(["a", "b", "c"], 1, 1)).toEqual(["a", "c", "b"]);
+    const l = ["a", "b"];
+    expect(deplacer(l, 0, -1)).toBe(l);
+    expect(deplacer(l, 1, 1)).toBe(l);
+  });
+
+  it("etatTour : ordre par position, retirés exclus, servis et prévus du tour courant seulement", () => {
+    const e = etatTour([m("c", 3), m("a", 1), m("x", 2, "retire"), m("b", 2, "invite")],
+      [r("r1", "a", "remis"), r("r2", "b", "prevu"), r("r0", "c", "remis", 0)], 1);
+    expect(e.lignes.map((l) => l.membre.id)).toEqual(["a", "b", "c"]);
+    expect(e.lignes.map((l) => [Boolean(l.servi), Boolean(l.prevu)])).toEqual([[true, false], [false, true], [false, false]]);
+    expect(e.aRemettre.map((x) => x.id)).toEqual(["r2"]);
+    expect(e.termine).toBe(false);
+  });
+
+  it("etatTour : terminé quand chaque membre non retiré (invités compris) a reçu sa part", () => {
+    const membres = [m("a", 1), m("b", 2, "invite"), m("x", 3, "retire")];
+    expect(etatTour(membres, [r("r1", "a", "remis")], 1).termine).toBe(false);
+    expect(etatTour(membres, [r("r1", "a", "remis"), r("r2", "b", "remis")], 1).termine).toBe(true);
+    expect(etatTour([], [], 1).termine).toBe(false);
+  });
+
+  it("montantPropose : collecté ÷ k, sinon le montant attendu", () => {
+    expect(montantPropose(r("r", "a", "prevu"), 15000, 2)).toBe(7500);
+    expect(montantPropose(r("r", "a", "prevu"), 5001, 2)).toBe(2500);
+    expect(montantPropose(r("r", "a", "prevu"), null, 1)).toBe(20000);
   });
 });

@@ -18,7 +18,7 @@ export type Frequence = "hebdomadaire" | "mensuelle" | "ponctuelle";
 export type MoyenPaiement = "mtn_momo" | "orange_money" | "especes" | "autre";
 export interface Groupe {
   id: string; name: string; type: string; amount: number; frequency: Frequence;
-  beneficiaries_per_cycle: number; current_round: number;
+  beneficiaries_per_cycle: number; current_round: number; order_locked: boolean;
 }
 export interface Membre {
   id: string; display_name: string; phone: string; role: RoleGroupe; status: "invite" | "actif" | "retire";
@@ -33,7 +33,13 @@ export interface Paiement {
   reference: string | null; paid_on: string; status: "declare" | "valide" | "conteste"; contest_reason: string | null; created_at: string;
 }
 export interface Dette { id: string; membership_id: string; cycle_id: string; amount: number; settled_at: string | null }
-export interface VueGroupe { role: RoleGroupe; groupe: Groupe; membres: Membre[]; cycles: Cycle[]; paiements: Paiement[]; dettes: Dette[] }
+export interface VueGroupe {
+  role: RoleGroupe; groupe: Groupe; membres: Membre[]; cycles: Cycle[]; paiements: Paiement[]; dettes: Dette[]; remises: Remise[];
+}
+/** Entrée du journal lue par `lire_journal` (auteur = nom de la personne, null pour une action automatique). */
+export interface EntreeJournal {
+  id: number; action: string; details: Record<string, unknown>; created_at: string; auteur: string | null; visible: boolean;
+}
 export interface ApercuRetrait { deja_servi: boolean; cycles_restants: number; montant_restant: number; dettes: number }
 /** Ligne renvoyée par ordre_tours (sans numéro de téléphone). */
 export interface OrdreTour {

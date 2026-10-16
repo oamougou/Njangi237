@@ -1,4 +1,5 @@
 import type { Stockage } from "../../lib/horsLigne";
+import type { OngletGroupe } from "../../lib/routes";
 import type { Api, VueGroupe } from "../../lib/types";
 import { useVue } from "../../lib/useVue";
 import { dateCourte } from "../../lib/format";
@@ -9,7 +10,7 @@ import { Avatar } from "../Decor";
 
 /** Espace d'un groupe : trésorier (onglets) ou membre. Mémoire locale, temps réel, lecture seule hors ligne. */
 export function Groupe({ api, id, onglet, personId, stockage }: {
-  api: Api; id: string; onglet: "cycle" | "membres"; personId: string; stockage: Stockage;
+  api: Api; id: string; onglet: OngletGroupe; personId: string; stockage: Stockage;
 }) {
   const { vue, le, horsLigne, err, recharger } = useVue<VueGroupe>({
     cle: `${personId}.groupe.${id}`, stockage,
