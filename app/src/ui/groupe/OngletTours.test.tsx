@@ -99,4 +99,28 @@ describe("onglet Tours", () => {
     await userEvent.click(screen.getByRole("button", { name: "Enregistrer l'ordre" }));
     expect((await screen.findByRole("alert")).textContent).toContain("verrouillé");
   });
+
+  it("tour terminé mais cycle encore ouvert : nouveau tour impossible tant que le cycle n'est pas clos", () => {
+    const v = vueTest();
+    v.remises = v.membres.map((m, i) => ({ id: `r${i}`, cycle_id: "c-oct", round: 1, membership_id: m.id, amount_expected: 20000,
+      amount: 20000, status: "remis" as const, paid_on: "2026-10-30" }));
+    render(<OngletTours api={fauxApi()} vue={v} recharger={vi.fn()} />);
+    expect((screen.getByRole("button", { name: "Commencer le tour 2" }) as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getByText("Clôturez d'abord le cycle en cours (onglet Cycle).")).toBeTruthy();
+  });
+
+  it("ordre en cours de réglage puis changement par un autre trésorier : pas de plantage, ordre réel affiché", async () => {
+    const api = fauxApi();
+    const { rerender } = render(<OngletTours api={api} vue={nonVerrouille()} recharger={vi.fn()} />);
+    await userEvent.click(screen.getByRole("button", { name: "Monter Bob" }));
+    const sansAlice = nonVerrouille();
+    sansAlice.membres = sansAlice.membres.map((m) => (m.id === "m-alice" ? { ...m, status: "retire" as const } : m));
+    rerender(<OngletTours api={api} vue={sansAlice} recharger={vi.fn()} />);
+    expect(ordre().map((t) => t!.replace(/[↑↓]/g, ""))).toEqual(["1. Tina", "2. Bob", "3. Ines"]);
+    expect((screen.getByRole("button", { name: "Enregistrer l'ordre" }) as HTMLButtonElement).disabled).toBe(true);
+    await userEvent.click(screen.getByRole("button", { name: "Monter Bob" }));
+    rerender(<OngletTours api={api} vue={vueTest()} recharger={vi.fn()} />);   // un cycle a été ouvert : ordre verrouillé
+    expect(screen.queryByRole("button", { name: /^Monter/ })).toBeNull();
+    expect(ordre()[1]).toContain("Alice");
+  });
 });
