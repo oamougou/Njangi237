@@ -5,20 +5,22 @@ import userEvent from "@testing-library/user-event";
 import { Groupe } from "./Groupe";
 import { fauxApi } from "../../test/fauxApi";
 import { vueTest } from "../../test/donnees";
+import { stockageMemoire } from "../../lib/horsLigne";
+import { ErreurReseau } from "../../lib/erreurs";
 
 afterEach(cleanup);
 
 describe("espace du groupe", () => {
   it("un membre non trésorier ne voit aucune action de trésorier", async () => {
     const vue = { ...vueTest(), role: "membre" as const };
-    render(<Groupe api={fauxApi(vue)} id="g1" onglet="cycle" />);
-    expect(await screen.findByText(/espace membre arrive bientôt/)).toBeTruthy();
+    render(<Groupe api={fauxApi(vue)} id="g1" onglet="cycle" personId="u-tina" stockage={stockageMemoire()} />);
+    expect(await screen.findByRole("region", { name: "Cycle en cours" })).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Clore le cycle" })).toBeNull();
   });
 
   it("un rechargement raté garde l'écran, affiche l'erreur et propose de réessayer", async () => {
     const api = fauxApi();
-    render(<Groupe api={api} id="g1" onglet="cycle" />);
+    render(<Groupe api={api} id="g1" onglet="cycle" personId="u-tina" stockage={stockageMemoire()} />);
     await screen.findByText("Octobre 2026");
     api.chargerGroupe.mockRejectedValueOnce(new Error("Réseau indisponible"));
     await userEvent.click(screen.getByRole("button", { name: "Actualiser" }));
@@ -27,5 +29,25 @@ describe("espace du groupe", () => {
     await userEvent.click(screen.getByRole("button", { name: "Réessayer" }));
     expect(api.chargerGroupe).toHaveBeenCalledTimes(3);
     expect(screen.queryByText(/Réseau indisponible/)).toBeNull();
+  });
+  it("trésorier hors ligne : dernière vue affichée, actions désactivées", async () => {
+    const stockage = stockageMemoire();
+    const api = fauxApi();
+    const { unmount } = render(<Groupe api={api} id="g1" onglet="cycle" personId="u-tina" stockage={stockage} />);
+    await screen.findByText("Octobre 2026");
+    unmount();
+    api.chargerGroupe.mockRejectedValue(new ErreurReseau());
+    render(<Groupe api={api} id="g1" onglet="cycle" personId="u-tina" stockage={stockage} />);
+    expect(await screen.findByText(/Hors ligne/)).toBeTruthy();
+    expect(screen.getByText("Octobre 2026")).toBeTruthy();
+    // Désactivé par le fieldset parent : la propriété disabled du bouton reste fausse, :disabled est vrai
+    expect(screen.getByRole("button", { name: "Valider le paiement d'Alice" }).matches(":disabled")).toBe(true);
+  });
+
+  it("temps réel : l'écran du trésorier s'abonne aux changements du groupe", async () => {
+    const api = fauxApi();
+    render(<Groupe api={api} id="g1" onglet="cycle" personId="u-tina" stockage={stockageMemoire()} />);
+    await screen.findByText("Octobre 2026");
+    expect(api.abonner).toHaveBeenCalledWith(["g1"], expect.any(Function));
   });
 });

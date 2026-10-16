@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { api } from "./lib/api";
+import { demarrerEnvoi } from "./lib/envoi";
+import { stockageNavigateur } from "./lib/horsLigne";
 import { lireRoute } from "./lib/routes";
 import type { Personne } from "./lib/types";
 import { Connexion } from "./ui/Connexion";
@@ -18,6 +20,8 @@ export default function App() {
   }, []);
   const rafraichir = useCallback(() => { api?.session().then(setMoi).catch(() => setMoi(null)); }, []);
   useEffect(() => { rafraichir(); }, [rafraichir]);
+  // Déclarations faites hors ligne : envoyées dès que la personne est connectée et à chaque retour du réseau
+  useEffect(() => (api && moi ? demarrerEnvoi(api, stockageNavigateur()) : undefined), [moi]);
 
   if (!api) return <main className="ecran etroit"><h1 className="marque">Njangi237</h1>
     <p className="alerte">Application non configurée (VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY).</p></main>;

@@ -1,3 +1,5 @@
+import { useMemo } from "react";
+import { stockageNavigateur } from "../lib/horsLigne";
 import type { Route } from "../lib/routes";
 import type { Api, Personne } from "../lib/types";
 import { Admin } from "./Admin";
@@ -7,6 +9,7 @@ import { Profil } from "./Profil";
 
 /** En-tête, navigation et écran courant d'une personne connectée. */
 export function Coque({ api, moi, route, onQuitter }: { api: Api; moi: Personne; route: Route; onQuitter: () => void }) {
+  const stockage = useMemo(stockageNavigateur, []);
   const onglet = route.nom === "profil" || (route.nom === "admin" && moi.admin) ? route.nom : "accueil";
   return (
     <>
@@ -20,8 +23,8 @@ export function Coque({ api, moi, route, onQuitter }: { api: Api; moi: Personne;
       </header>
       <main className="ecran">
         {onglet === "accueil" && (route.nom === "groupe"
-          ? <Groupe key={route.id} api={api} id={route.id} onglet={route.onglet} />
-          : <MesGroupes api={api} />)}
+          ? <Groupe key={route.id} api={api} id={route.id} onglet={route.onglet} personId={moi.id} stockage={stockage} />
+          : <MesGroupes api={api} personId={moi.id} stockage={stockage} />)}
         {onglet === "admin" && <Admin api={api} />}
         {onglet === "profil" && <Profil api={api} moi={moi} onQuitter={onQuitter} />}
       </main>
