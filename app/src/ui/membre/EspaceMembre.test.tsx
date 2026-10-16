@@ -5,14 +5,14 @@ import userEvent from "@testing-library/user-event";
 import { EspaceMembre } from "./EspaceMembre";
 import { fauxApi } from "../../test/fauxApi";
 import { vueMembreTest } from "../../test/donnees";
-import { lireFile, stockageMemoire } from "../../lib/horsLigne";
+import { lireFile, mettreEnFile, stockageMemoire } from "../../lib/horsLigne";
 import { ErreurReseau } from "../../lib/erreurs";
 import type { VueMembre } from "../../lib/types";
 
 afterEach(cleanup);
-const afficher = (vue: VueMembre = vueMembreTest(), api = fauxApi(), stockage = stockageMemoire()) => {
+const afficher = (vue: VueMembre = vueMembreTest(), api = fauxApi(), stockage = stockageMemoire(), personId = "u-alice") => {
   api.chargerVueMembre.mockResolvedValue(vue);
-  render(<EspaceMembre api={api} groupId="g1" personId="u-alice" stockage={stockage} />);
+  render(<EspaceMembre api={api} groupId="g1" personId={personId} stockage={stockage} />);
   return { api, stockage };
 };
 const cycle = () => screen.getByRole("region", { name: "Cycle en cours" });
@@ -46,7 +46,7 @@ describe("espace membre", () => {
     await userEvent.click(await screen.findByRole("button", { name: "Déclarer mon paiement" }));
     await userEvent.selectOptions(screen.getByLabelText("Moyen de paiement"), "especes");
     await userEvent.click(screen.getByRole("button", { name: "Envoyer la déclaration" }));
-    expect(lireFile(stockage).map((e) => e.declaration.moyen)).toEqual(["especes"]);
+    expect(lireFile(stockage, "u-alice").map((e) => e.declaration.moyen)).toEqual(["especes"]);
     expect(await screen.findByText(/envoyée automatiquement au retour du réseau/)).toBeTruthy();
     expect(cycle().textContent).toContain("En attente d'envoi");
     expect(screen.queryByRole("button", { name: "Déclarer mon paiement" })).toBeNull();
@@ -59,7 +59,7 @@ describe("espace membre", () => {
     await userEvent.selectOptions(screen.getByLabelText("Moyen de paiement"), "especes");
     await userEvent.click(screen.getByRole("button", { name: "Envoyer la déclaration" }));
     expect(await screen.findByText("Ce cycle est clos")).toBeTruthy();
-    expect(lireFile(stockage)).toEqual([]);
+    expect(lireFile(stockage, "u-alice")).toEqual([]);
   });
 
   it("en attente de validation, puis contesté avec motif et nouvelle déclaration possible", async () => {
@@ -114,5 +114,50 @@ describe("espace membre", () => {
     expect(histo.textContent).toContain("Septembre 2026");
     expect(histo.textContent).toContain("2 000 FCFA");
     expect(histo.textContent).toContain("Validé");
+  });
+
+  it("téléphone partagé : la déclaration en attente d'une autre personne n'apparaît pas", async () => {
+    const stockage = stockageMemoire();
+    mettreEnFile(stockage, "u-tina", { id: "x", groupId: "g1", cycleId: "c-oct", montant: 5000, moyen: "especes", reference: null, date: "2026-10-16", detteId: null });
+    afficher(vueMembreTest(), fauxApi(), stockage, "u-alice");
+    expect(await screen.findByRole("button", { name: "Déclarer mon paiement" })).toBeTruthy();
+    expect(cycle().textContent).not.toContain("En attente d'envoi");
+  });
+
+  it("déclaration refusée en différé : motif affiché, puis « Compris » la retire", async () => {
+    const stockage = stockageMemoire();
+    stockage.ecrire("njangi.file.u-alice", JSON.stringify([{ etat: "rejete", erreur: "Ce cycle est clos",
+      declaration: { id: "x", groupId: "g1", cycleId: "c-sep", montant: 5000, moyen: "especes", reference: null, date: "2026-09-20", detteId: null } }]));
+    afficher(vueMembreTest(), fauxApi(), stockage);
+    expect(await screen.findByText(/refusée : Ce cycle est clos/)).toBeTruthy();
+    await userEvent.click(screen.getByRole("button", { name: "Compris" }));
+    expect(screen.queryByText(/refusée/)).toBeNull();
+    expect(lireFile(stockage, "u-alice")).toEqual([]);
+  });
+
+  it("hors ligne : « Réessayer » renvoie la file sans attendre l'événement réseau", async () => {
+    const api = fauxApi(); const stockage = stockageMemoire();
+    api.chargerVueMembre.mockRejectedValueOnce(new ErreurReseau());
+    stockage.ecrire("njangi.vue.u-alice.membre.g1", JSON.stringify({ donnees: vueMembreTest(), le: "2026-10-16T10:00:00Z" }));
+    mettreEnFile(stockage, "u-alice", { id: "x", groupId: "g1", cycleId: "c-oct", montant: 5000, moyen: "especes", reference: null, date: "2026-10-16", detteId: null });
+    render(<EspaceMembre api={api} groupId="g1" personId="u-alice" stockage={stockage} />);
+    await userEvent.click(await screen.findByRole("button", { name: "Réessayer" }));
+    await vi.waitFor(() => expect(api.declarerPaiement).toHaveBeenCalledTimes(1));
+    expect(lireFile(stockage, "u-alice")).toEqual([]);
+  });
+
+  it("ni réseau ni données gardées : le dire au lieu de « Chargement… » sans fin", async () => {
+    const api = fauxApi(); api.chargerVueMembre.mockRejectedValue(new ErreurReseau());
+    render(<EspaceMembre api={api} groupId="g1" personId="u-alice" stockage={stockageMemoire()} />);
+    expect(await screen.findByText(/aucune donnée enregistrée sur ce téléphone/)).toBeTruthy();
+  });
+
+  it("aucun cycle ouvert : pas de « ce cycle » dans l'estimation du tour", async () => {
+    const vue = vueMembreTest();
+    vue.cycles = vue.cycles.map((c) => ({ ...c, status: "clos" as const }));
+    vue.ordre = vue.ordre.map((o) => ({ ...o, prevu: false }));
+    afficher(vue);
+    const tours = await screen.findByRole("region", { name: "Ordre des tours" });
+    expect(tours.textContent).not.toContain("ce cycle !");
   });
 });

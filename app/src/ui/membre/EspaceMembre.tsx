@@ -2,7 +2,7 @@ import { useMemo, useRef, useState } from "react";
 import { estReseau } from "../../lib/erreurs";
 import { monEtat } from "../../lib/etatMembre";
 import { dateCourte, de, fcfa } from "../../lib/format";
-import { lireFile, mettreEnFile, type Stockage } from "../../lib/horsLigne";
+import { lireFile, mettreEnFile, retirerDeFile, viderFile, type Stockage } from "../../lib/horsLigne";
 import { estimerTour } from "../../lib/tours";
 import type { Api, Declaration, Dette, Paiement } from "../../lib/types";
 import { useVue } from "../../lib/useVue";
@@ -23,11 +23,19 @@ export function EspaceMembre({ api, groupId, personId, stockage }: { api: Api; g
   const [, rafraichir] = useState(0);
   const enCours = useRef(false);
 
-  const file = lireFile(stockage).filter((e) => e.declaration.groupId === groupId);
+  const file = lireFile(stockage, personId).filter((e) => e.declaration.groupId === groupId);
   const ouvert = vue?.cycles.find((c) => c.status === "ouvert") ?? null;
   const etat = useMemo(() => (vue ? monEtat(ouvert, vue.moi, vue.paiements, file) : null), [vue, ouvert, file]);
 
-  if (!vue) return err ? <p className="alerte">{err}</p> : <p className="note">Chargement…</p>;
+  if (!vue) return err ? <p className="alerte">{err}</p>
+    : horsLigne ? <p className="alerte">Hors ligne : aucune donnée enregistrée sur ce téléphone pour ce groupe. Réessayez avec du réseau.</p>
+    : <p className="note">Chargement…</p>;
+
+  // Sans attendre l'événement « online » (réseau faible) : renvoie la file puis recharge
+  const reessayer = () => {
+    viderFile(stockage, personId, (x) => api.declarerPaiement(x)).catch(() => undefined)
+      .finally(() => { rafraichir((n) => n + 1); recharger(); });
+  };
 
   const declarer = async (s: SaisieDeclaration) => {
     if (!form || enCours.current) return;
@@ -39,7 +47,7 @@ export function EspaceMembre({ api, groupId, personId, stockage }: { api: Api; g
       setForm(null); setInfo("Paiement déclaré : votre trésorier va le valider."); recharger();
     } catch (e) {
       if (estReseau(e)) {
-        mettreEnFile(stockage, d); setForm(null); rafraichir((n) => n + 1);
+        mettreEnFile(stockage, personId, d); setForm(null); rafraichir((n) => n + 1);
         setInfo("Pas de réseau : votre déclaration est gardée sur le téléphone et sera envoyée automatiquement au retour du réseau.");
       } else setErreur((e as Error).message);
     } finally { enCours.current = false; setOccupe(false); }
@@ -59,10 +67,16 @@ export function EspaceMembre({ api, groupId, personId, stockage }: { api: Api; g
   return (
     <section>
       <div className="ligne"><h2>{vue.groupe.name}</h2><a className="lien" href="#/">← Mes groupes</a></div>
-      {horsLigne && <p className="alerte">Hors ligne{le ? ` · données du ${dateCourte(le).slice(0, 5)} à ${new Date(le).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}` : ""}</p>}
+      {horsLigne && <div className="alerte ligne" role="alert">
+        <span>Hors ligne{le ? ` · données du ${dateCourte(le).slice(0, 5)} à ${new Date(le).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}` : ""}</span>
+        <button className="btn petit" onClick={reessayer}>Réessayer</button></div>}
       {erreur && <p className="alerte flottante" role="alert">{erreur}</p>}
       {info && <p className="ok">{info}</p>}
-      {refusees.map((e) => <p key={e.declaration.id} className="alerte">Déclaration de {fcfa(e.declaration.montant)} refusée : {e.erreur}</p>)}
+      {refusees.map((e) => (
+        <div key={e.declaration.id} className="alerte ligne">
+          <span>Déclaration de {fcfa(e.declaration.montant)} refusée : {e.erreur}</span>
+          <button className="btn petit" onClick={() => { retirerDeFile(stockage, personId, e.declaration.id); rafraichir((n) => n + 1); }}>Compris</button>
+        </div>))}
 
       <section className="carte" role="region" aria-label="Cycle en cours">
         {ouvert && etat ? <>

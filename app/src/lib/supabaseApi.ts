@@ -2,13 +2,19 @@ import { createClient } from "@supabase/supabase-js";
 import { genererJeton, hashJeton } from "./jeton";
 import { lienApp, lienWhatsApp, messageWhatsApp, type TypeLien } from "./liens";
 import { normaliserTelephone } from "./telephone";
-import { versErreur } from "./erreurs";
-import type { Api, ApercuRetrait, Declaration, LienEnvoye, MonGroupe, Personne, ResumeGroupe, VueGroupe, VueMembre } from "./types";
+import { ErreurReseau, versErreur } from "./erreurs";
+import { resumerGroupe } from "./resume";
+import type { Api, ApercuRetrait, Declaration, LienEnvoye, MonGroupe, Personne, VueGroupe, VueMembre } from "./types";
 
 type SessionServeur = { session: { access_token: string; refresh_token: string } };
 
 export function createSupabaseApi(url: string, key: string): Api {
-  const sb = createClient(url, key, { auth: { persistSession: true, autoRefreshToken: true } });
+  // Délai de 15 s par requête : sur un réseau qui « tient » sans débit, une requête bloquée bloquerait l'écran et l'envoi de la file
+  const fetchAvecDelai: typeof fetch = (entree, options) => {
+    const delai = typeof AbortSignal !== "undefined" && "timeout" in AbortSignal ? AbortSignal.timeout(15_000) : undefined;
+    return fetch(entree, { ...options, signal: options?.signal ?? delai });
+  };
+  const sb = createClient(url, key, { auth: { persistSession: true, autoRefreshToken: true }, global: { fetch: fetchAvecDelai } });
 
   const must = <T>(r: { data: T | null; error: { message: string; code?: string } | null }): T => {
     if (r.error) throw versErreur(r.error);
@@ -42,10 +48,16 @@ export function createSupabaseApi(url: string, key: string): Api {
   };
 
   const api: Api = {
+    // Une coupure lève ErreurReseau (jamais « déconnecté ») : l'application reprend alors la personne gardée sur le téléphone
     async session(): Promise<Personne | null> {
-      const { data } = await sb.auth.getSession();
+      const { data, error } = await sb.auth.getSession();
+      if (error) {
+        if (error.name === "AuthRetryableFetchError" || /fetch|network|load failed/i.test(error.message)) throw new ErreurReseau();
+        return null;
+      }
       if (!data.session) return null;
-      const p = (await sb.from("people").select("id, phone, full_name").eq("id", data.session.user.id).maybeSingle()).data;
+      const p = must(await sb.from("people").select("id, phone, full_name").eq("id", data.session.user.id).maybeSingle()) as
+        Omit<Personne, "admin"> | null;
       if (!p) return null;
       return { ...p, admin: Boolean(must(await sb.rpc("is_platform_admin"))) };
     },
@@ -64,32 +76,22 @@ export function createSupabaseApi(url: string, key: string): Api {
     async mesGroupes(): Promise<MonGroupe[]> {
       const { data } = await sb.auth.getSession();
       if (!data.session) return [];
-      const rows = must(await sb.from("memberships").select("id, role, groups(id, name, type, amount, frequency)")
+      const rows = must(await sb.from("memberships").select("id, role, created_at, groups(id, name, type, amount, frequency)")
         .eq("person_id", data.session.user.id).eq("status", "actif")) as unknown as
-        { id: string; role: MonGroupe["role"]; groups: MonGroupe["groupe"] }[];
-      const groupes = rows.map((r) => ({ membership_id: r.id, role: r.role, groupe: r.groups }))
-        .sort((a, b) => a.groupe.name.localeCompare(b.groupe.name, "fr"));
-      if (!groupes.length) return groupes;
+        { id: string; role: MonGroupe["role"]; created_at: string; groups: MonGroupe["groupe"] }[];
+      rows.sort((a, b) => a.groups.name.localeCompare(b.groups.name, "fr"));
+      if (!rows.length) return [];
       // Résumé : cycle ouvert de chaque groupe et paiements de ces cycles (la RLS ne montre au membre que les siens)
-      const cycles = must(await sb.from("cycles").select("id, group_id, label, due_date, amount_expected")
-        .in("group_id", groupes.map((g) => g.groupe.id)).eq("status", "ouvert")) as
-        { id: string; group_id: string; label: string; due_date: string | null; amount_expected: number }[];
-      const paiements = cycles.length ? must(await sb.from("payments").select("cycle_id, membership_id, status, amount, debt_id")
+      const cycles = must(await sb.from("cycles").select("id, group_id, label, due_date, amount_expected, opened_at")
+        .in("group_id", rows.map((r) => r.groups.id)).eq("status", "ouvert")) as
+        { id: string; group_id: string; label: string; due_date: string | null; amount_expected: number; opened_at: string }[];
+      const paiements = cycles.length ? must(await sb.from("payments").select("cycle_id, membership_id, status, amount")
         .in("cycle_id", cycles.map((c) => c.id)).is("debt_id", null)) as
         { cycle_id: string; membership_id: string; status: string; amount: number }[] : [];
-      return groupes.map((g) => {
-        const c = cycles.find((x) => x.group_id === g.groupe.id);
-        const duCycle = paiements.filter((p) => p.cycle_id === c?.id);
-        const miens = duCycle.filter((p) => p.membership_id === g.membership_id);
-        const valide = miens.filter((p) => p.status === "valide").reduce((s, p) => s + p.amount, 0);
-        const resume: ResumeGroupe = {
-          cycle: c?.label ?? null, echeance: c?.due_date ?? null, montant: c?.amount_expected ?? null,
-          monEtat: !c ? null : valide >= c.amount_expected ? "paye" : miens.some((p) => p.status === "declare") ? "en_attente"
-            : miens.some((p) => p.status === "conteste") ? "conteste" : "a_payer",
-          aValider: g.role === "tresorier" ? duCycle.filter((p) => p.status === "declare").length : 0,
-        };
-        return { ...g, resume };
-      });
+      return rows.map((r) => ({
+        membership_id: r.id, role: r.role, groupe: r.groups,
+        resume: resumerGroupe(r.role, r.id, r.created_at, cycles.find((c) => c.group_id === r.groups.id) ?? null, paiements),
+      }));
     },
     async creerGroupe(g) {
       const r = must(await sb.rpc("creer_groupe", {

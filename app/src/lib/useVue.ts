@@ -15,12 +15,17 @@ export function useVue<T>({ cle, charger, abonner, stockage }: {
   const [horsLigne, setHorsLigne] = useState(false);
   const [err, setErr] = useState("");
   const chargerRef = useRef(charger); chargerRef.current = charger;
+  // Numéro de la dernière demande : une réponse plus ancienne arrivée après une plus récente est ignorée
+  const derniere = useRef(0);
 
   const recharger = useCallback(() => {
+    const n = ++derniere.current;
     chargerRef.current().then((v) => {
+      if (n !== derniere.current) return;
       setVue(v); setLe(null); setHorsLigne(false); setErr("");
       if (cle) memoriser(stockage, cle, v);
     }).catch((e) => {
+      if (n !== derniere.current) return;
       if (estReseau(e)) {
         setHorsLigne(true);
         setLe(cle ? relire<T>(stockage, cle)?.le ?? null : null);
@@ -35,7 +40,7 @@ export function useVue<T>({ cle, charger, abonner, stockage }: {
     const regroupe = () => { clearTimeout(minuterie); minuterie = setTimeout(recharger, 400); };
     const arreter = abonner(regroupe);
     const surLigne = () => recharger();
-    const horsReseau = () => setHorsLigne(true);
+    const horsReseau = () => { setHorsLigne(true); setLe(cle ? relire<T>(stockage, cle)?.le ?? null : null); };
     window.addEventListener("online", surLigne);
     window.addEventListener("offline", horsReseau);
     window.addEventListener("njangi:file", surLigne);
@@ -47,7 +52,7 @@ export function useVue<T>({ cle, charger, abonner, stockage }: {
     };
     // abonner change à chaque rendu chez l'appelant : on ne s'abonne qu'une fois par vue
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [recharger]);
+  }, [recharger, cle, stockage]);
 
   return { vue, le, horsLigne, err, recharger };
 }
