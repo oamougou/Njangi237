@@ -5,6 +5,7 @@ import type { Api, ApercuRetrait, LienEnvoye, Membre, VueGroupe } from "../../li
 import { Champ } from "../Champ";
 import { Confirmer } from "../Confirmer";
 import { Lien } from "../Lien";
+import { ImportContacts } from "./ImportContacts";
 
 export function OngletMembres({ api, vue, recharger }: { api: Api; vue: VueGroupe; recharger: () => void }) {
   const [nom, setNom] = useState(""); const [tel, setTel] = useState("");
@@ -48,6 +49,8 @@ export function OngletMembres({ api, vue, recharger }: { api: Api; vue: VueGroup
           message={messageRetrait(retrait.membre, retrait.apercu)} onNon={() => setRetrait(null)}
           onOui={() => agir(async () => { await api.retirerMembre(retrait.membre.id); setRetrait(null); }, `${retrait.membre.display_name} retiré(e) du groupe.`)} />
       )}
+
+      <ImportContacts api={api} vue={vue} recharger={recharger} />
 
       <form className="carte" onSubmit={ajouter}>
         <h3>Ajouter un membre</h3>
