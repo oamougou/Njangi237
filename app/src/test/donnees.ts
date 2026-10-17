@@ -5,7 +5,7 @@ export function vueTest(): VueGroupe {
   const base = { person_id: null, left_balance: null, created_at: "2026-09-01T00:00:00Z" };
   return {
     role: "tresorier",
-    groupe: { id: "g1", name: "Tontine des amis", type: "tontine", amount: 5000, frequency: "mensuelle", beneficiaries_per_cycle: 1, current_round: 1 },
+    groupe: { id: "g1", name: "Tontine des amis", type: "tontine", amount: 5000, frequency: "mensuelle", beneficiaries_per_cycle: 1, current_round: 1, order_locked: true },
     membres: [
       { ...base, id: "m-tina", display_name: "Tina", phone: "237690000002", role: "tresorier", status: "actif", position: 1, person_id: "u-tina" },
       { ...base, id: "m-alice", display_name: "Alice", phone: "237690000003", role: "membre", status: "actif", position: 2, person_id: "u-alice" },
@@ -21,6 +21,8 @@ export function vueTest(): VueGroupe {
         paid_on: "2026-10-05", status: "declare", contest_reason: null, created_at: "2026-10-05T09:00:00Z" },
     ],
     dettes: [],
+    remises: [{ id: "r-oct", cycle_id: "c-oct", round: 1, membership_id: "m-tina", amount_expected: 20000, amount: null,
+      status: "prevu", paid_on: null }],
   };
 }
 

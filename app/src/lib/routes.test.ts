@@ -12,6 +12,8 @@ describe("routes", () => {
     expect(lireRoute("#/amorcer")).toEqual({ nom: "amorcer" });
     expect(lireRoute("#/groupe/abc-123")).toEqual({ nom: "groupe", id: "abc-123", onglet: "cycle" });
     expect(lireRoute("#/groupe/abc-123/membres")).toEqual({ nom: "groupe", id: "abc-123", onglet: "membres" });
+    expect(lireRoute("#/groupe/abc-123/tours")).toEqual({ nom: "groupe", id: "abc-123", onglet: "tours" });
+    expect(lireRoute("#/groupe/abc-123/journal")).toEqual({ nom: "groupe", id: "abc-123", onglet: "journal" });
     expect(lireRoute("#/groupe/abc-123/inconnu")).toEqual({ nom: "groupe", id: "abc-123", onglet: "cycle" });
     for (const h of ["", "#", "#/", "#/invitation", "#/inconnu"]) expect(lireRoute(h)).toEqual({ nom: "accueil" });
   });

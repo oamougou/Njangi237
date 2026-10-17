@@ -5,7 +5,7 @@ import userEvent from "@testing-library/user-event";
 import { Groupe } from "./Groupe";
 import { fauxApi } from "../../test/fauxApi";
 import { vueTest } from "../../test/donnees";
-import { stockageMemoire } from "../../lib/horsLigne";
+import { memoriser, stockageMemoire } from "../../lib/horsLigne";
 import { ErreurReseau } from "../../lib/erreurs";
 
 afterEach(cleanup);
@@ -49,5 +49,32 @@ describe("espace du groupe", () => {
     render(<Groupe api={api} id="g1" onglet="cycle" personId="u-tina" stockage={stockageMemoire()} />);
     await screen.findByText("Octobre 2026");
     expect(api.abonner).toHaveBeenCalledWith(["g1"], expect.any(Function));
+  });
+  it("trésorier d'une tontine : quatre onglets ; Tours masqué pour une cotisation", async () => {
+    const api = fauxApi();
+    render(<Groupe api={api} id="g1" onglet="tours" personId="u-tina" stockage={stockageMemoire()} />);
+    expect(await screen.findByRole("list", { name: "Ordre des tours" })).toBeTruthy();
+    expect(screen.getAllByRole("link").map((a) => a.textContent)).toEqual(expect.arrayContaining(["Cycle", "Membres", "Tours", "Journal"]));
+    cleanup();
+    const v = vueTest();
+    render(<Groupe api={fauxApi({ ...v, groupe: { ...v.groupe, type: "cotisation" } })} id="g1" onglet="journal" personId="u-tina"
+      stockage={stockageMemoire()} />);
+    expect(await screen.findByText("Aucune action enregistrée pour l'instant.")).toBeTruthy();
+    expect(screen.queryByRole("link", { name: "Tours" })).toBeNull();
+  });
+
+  it("vue gardée par une version précédente (sans remises) : Tours et Journal s'affichent sans planter", async () => {
+    const stockage = stockageMemoire();
+    const { remises: _r, ...ancienne } = vueTest();
+    const { order_locked: _o, ...groupe } = ancienne.groupe;
+    memoriser(stockage, "u-tina.groupe.g1", { ...ancienne, groupe });
+    const api = fauxApi();
+    api.chargerGroupe.mockReturnValue(new Promise(() => {}));   // réseau qui ne répond pas
+    render(<Groupe api={api} id="g1" onglet="tours" personId="u-tina" stockage={stockage} />);
+    expect(await screen.findByRole("list", { name: "Ordre des tours" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /^Monter/ })).toBeNull();   // ordre inconnu : traité comme verrouillé
+    cleanup();
+    render(<Groupe api={api} id="g1" onglet="journal" personId="u-tina" stockage={stockage} />);
+    expect(await screen.findByText("Aucune action enregistrée pour l'instant.")).toBeTruthy();
   });
 });
