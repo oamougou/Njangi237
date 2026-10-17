@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { bilanCycle } from "../../lib/cycle";
 import { dateCourte, fcfa } from "../../lib/format";
 import { deplacer, etatTour, montantPropose } from "../../lib/tours";
@@ -19,6 +19,10 @@ export function OngletTours({ api, vue, recharger }: { api: Api; vue: VueGroupe;
   const [echange, setEchange] = useState<{ a: string; b: string } | null>(null);
   const [saisie, setSaisie] = useState<SaisieRemise | null>(null);
   const [remplacement, setRemplacement] = useState<{ remise: Remise; par: string } | null>(null);
+  // Sur téléphone, le panneau qui s'ouvre peut être hors de l'écran : on l'y amène
+  const panneau = useRef<HTMLElement | null>(null);
+  const ouvert = saisie ? `r${saisie.remise.id}` : remplacement ? `p${remplacement.remise.id}` : null;
+  useEffect(() => { if (ouvert) panneau.current?.scrollIntoView?.({ block: "center", behavior: "smooth" }); }, [ouvert]);
 
   const g = vue.groupe;
   if (g.type !== "tontine") return <p className="note">Les tours ne concernent que les tontines.</p>;
@@ -50,10 +54,56 @@ export function OngletTours({ api, vue, recharger }: { api: Api; vue: VueGroupe;
   const saisieValide = saisie && montant > 0
     && !((saisie.moyen === "mtn_momo" || saisie.moyen === "orange_money") && !saisie.reference.trim());
 
+  const panneauRemplacement = remplacement && (
+        <div className="carte confirmer" ref={(el) => { panneau.current = el; }}>
+          <h3>Remplacer {nom(remplacement.remise.membership_id)}</h3>
+          <label className="champ"><span>Nouveau bénéficiaire</span>
+            <select value={remplacement.par} onChange={(e) => setRemplacement({ ...remplacement, par: e.target.value })}>
+              <option value="">Choisir…</option>
+              {nonServis.filter((m) => m.id !== remplacement.remise.membership_id)
+                .map((m) => <option key={m.id} value={m.id}>{m.display_name}</option>)}
+            </select></label>
+          <p className="note">Les deux membres échangent leur tour ; l'échange est inscrit au journal.</p>
+          <div className="ligne">
+            <button className="btn" onClick={() => setRemplacement(null)} disabled={occupe}>Annuler</button>
+            <button className="btn principal" disabled={!remplacement.par || occupe}
+              onClick={() => agir(async () => {
+                await api.remplacerBeneficiaire(remplacement.remise.id, remplacement.par); setRemplacement(null);
+                return `${nom(remplacement.par)} devient bénéficiaire à la place de ${nom(remplacement.remise.membership_id)}.`;
+              })}>Confirmer le remplacement</button>
+          </div>
+        </div>);
+
+  const formRemise = saisie && (
+        <form className="carte confirmer" ref={(el) => { panneau.current = el; }} onSubmit={(e) => {
+          e.preventDefault();
+          if (!saisieValide) return;
+          agir(async () => {
+            const { ecart } = await api.enregistrerRemise(saisie.remise.id, montant, saisie.moyen, saisie.reference.trim() || null);
+            setSaisie(null);
+            return `Cagnotte remise à ${saisie.nom} : ${fcfa(montant)}.${ecartTexte(ecart)}`;
+          });
+        }}>
+          <h3>Remettre la cagnotte à {saisie.nom}</h3>
+          <Champ label="Montant remis (FCFA)" inputMode="numeric" value={saisie.montant}
+            onChange={(e) => setSaisie({ ...saisie, montant: e.target.value.replace(/\D/g, "") })}
+            aide={`Proposé : collecté ÷ ${g.beneficiaries_per_cycle} bénéficiaire${g.beneficiaries_per_cycle > 1 ? "s" : ""}. Attendu : ${fcfa(saisie.remise.amount_expected)}.`} />
+          <label className="champ"><span>Moyen</span>
+            <select value={saisie.moyen} onChange={(e) => setSaisie({ ...saisie, moyen: e.target.value as MoyenPaiement })}>
+              {MOYENS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+            </select></label>
+          {saisie.moyen !== "especes" && <Champ label="Référence de la transaction" value={saisie.reference}
+            onChange={(e) => setSaisie({ ...saisie, reference: e.target.value })} />}
+          <div className="ligne">
+            <button type="button" className="btn" onClick={() => setSaisie(null)} disabled={occupe}>Annuler</button>
+            <button className="btn principal" disabled={!saisieValide || occupe}>Enregistrer la remise</button>
+          </div>
+        </form>);
+
   return (
     <section>
       {err && <p className="alerte flottante" role="alert">{err}</p>}
-      {info && <p className="ok">{info}</p>}
+      {info && <p className="ok flottante" role="status">{info}</p>}
 
       {etat.termine && (
         <div className="carte succes">
@@ -147,59 +197,16 @@ export function OngletTours({ api, vue, recharger }: { api: Api; vue: VueGroupe;
               <div className="ligne"><b>{nom(r.membership_id)}</b><span className="note">{cycle(r.cycle_id)?.label ?? ""}</span></div>
               <p className="note">Montant attendu : {fcfa(r.amount_expected)}</p>
               <div className="actions">
-                <button className="btn principal petit" onClick={() => ouvrirRemise(r)}>Remettre la cagnotte à {nom(r.membership_id)}</button>
+                <button className="btn principal petit" onClick={() => { setRemplacement(null); ouvrirRemise(r); }}>Remettre la cagnotte à {nom(r.membership_id)}</button>
                 <button className="btn petit" aria-label={`Remplacer ${nom(r.membership_id)}`}
-                  onClick={() => setRemplacement({ remise: r, par: "" })}>Remplacer</button>
+                  onClick={() => { setSaisie(null); setRemplacement({ remise: r, par: "" }); }}>Remplacer</button>
               </div>
+              {remplacement?.remise.id === r.id && panneauRemplacement}
+              {saisie?.remise.id === r.id && formRemise}
             </li>))}
           </ul>
         </div>)}
 
-      {remplacement && (
-        <div className="carte confirmer">
-          <h3>Remplacer {nom(remplacement.remise.membership_id)}</h3>
-          <label className="champ"><span>Nouveau bénéficiaire</span>
-            <select value={remplacement.par} onChange={(e) => setRemplacement({ ...remplacement, par: e.target.value })}>
-              <option value="">Choisir…</option>
-              {nonServis.filter((m) => m.id !== remplacement.remise.membership_id)
-                .map((m) => <option key={m.id} value={m.id}>{m.display_name}</option>)}
-            </select></label>
-          <p className="note">Les deux membres échangent leur tour ; l'échange est inscrit au journal.</p>
-          <div className="ligne">
-            <button className="btn" onClick={() => setRemplacement(null)} disabled={occupe}>Annuler</button>
-            <button className="btn principal" disabled={!remplacement.par || occupe}
-              onClick={() => agir(async () => {
-                await api.remplacerBeneficiaire(remplacement.remise.id, remplacement.par); setRemplacement(null);
-                return `${nom(remplacement.par)} devient bénéficiaire à la place de ${nom(remplacement.remise.membership_id)}.`;
-              })}>Confirmer le remplacement</button>
-          </div>
-        </div>)}
-
-      {saisie && (
-        <form className="carte confirmer" onSubmit={(e) => {
-          e.preventDefault();
-          if (!saisieValide) return;
-          agir(async () => {
-            const { ecart } = await api.enregistrerRemise(saisie.remise.id, montant, saisie.moyen, saisie.reference.trim() || null);
-            setSaisie(null);
-            return `Cagnotte remise à ${saisie.nom} : ${fcfa(montant)}.${ecartTexte(ecart)}`;
-          });
-        }}>
-          <h3>Remettre la cagnotte à {saisie.nom}</h3>
-          <Champ label="Montant remis (FCFA)" inputMode="numeric" value={saisie.montant}
-            onChange={(e) => setSaisie({ ...saisie, montant: e.target.value.replace(/\D/g, "") })}
-            aide={`Proposé : collecté ÷ ${g.beneficiaries_per_cycle} bénéficiaire${g.beneficiaries_per_cycle > 1 ? "s" : ""}. Attendu : ${fcfa(saisie.remise.amount_expected)}.`} />
-          <label className="champ"><span>Moyen</span>
-            <select value={saisie.moyen} onChange={(e) => setSaisie({ ...saisie, moyen: e.target.value as MoyenPaiement })}>
-              {MOYENS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-            </select></label>
-          {saisie.moyen !== "especes" && <Champ label="Référence de la transaction" value={saisie.reference}
-            onChange={(e) => setSaisie({ ...saisie, reference: e.target.value })} />}
-          <div className="ligne">
-            <button type="button" className="btn" onClick={() => setSaisie(null)} disabled={occupe}>Annuler</button>
-            <button className="btn principal" disabled={!saisieValide || occupe}>Enregistrer la remise</button>
-          </div>
-        </form>)}
     </section>
   );
 }
