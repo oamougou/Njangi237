@@ -8,11 +8,12 @@ export function stockageMemoire(): Stockage {
   const m = new Map<string, string>();
   return { lire: (k) => m.get(k) ?? null, ecrire: (k, v) => { m.set(k, v); }, supprimer: (k) => { m.delete(k); } };
 }
-export function stockageNavigateur(): Stockage {
+/** `prefixe` : espace séparé dans le localStorage (la démo y range ses vues et sa file, à part de celles d'un vrai compte). */
+export function stockageNavigateur(prefixe = ""): Stockage {
   return {
-    lire: (k) => { try { return localStorage.getItem(k); } catch { return null; } },
-    ecrire: (k, v) => { try { localStorage.setItem(k, v); } catch { /* mémoire pleine ou désactivée : on continue sans */ } },
-    supprimer: (k) => { try { localStorage.removeItem(k); } catch { /* idem */ } },
+    lire: (k) => { try { return localStorage.getItem(prefixe + k); } catch { return null; } },
+    ecrire: (k, v) => { try { localStorage.setItem(prefixe + k, v); } catch { /* mémoire pleine ou désactivée : on continue sans */ } },
+    supprimer: (k) => { try { localStorage.removeItem(prefixe + k); } catch { /* idem */ } },
   };
 }
 

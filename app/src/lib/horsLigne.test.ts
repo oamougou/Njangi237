@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { ErreurReseau } from "./erreurs";
-import { lireFile, memoriser, mettreEnFile, relire, retirerDeFile, stockageMemoire, viderFile } from "./horsLigne";
+import { lireFile, memoriser, mettreEnFile, relire, retirerDeFile, stockageMemoire, stockageNavigateur, viderFile } from "./horsLigne";
 import type { Declaration } from "./types";
 
 const d = (id: string): Declaration => ({ id, groupId: "g1", cycleId: "c1", montant: 5000, moyen: "mtn_momo",
@@ -75,5 +75,17 @@ describe("file des déclarations", () => {
     expect(await viderFile(s, "u-bob", envoyer)).toEqual({ envoyes: 0, rejetes: 0, coupure: false });
     expect(envoyer).not.toHaveBeenCalled();
     expect(lireFile(s, "u-alice").map((e) => e.declaration.id)).toEqual(["a"]);
+  });
+});
+
+describe("stockageNavigateur", () => {
+  it("range les clés sous le préfixe donné : la démo ne touche pas aux données d'un vrai compte", () => {
+    const m = new Map<string, string>();
+    vi.stubGlobal("localStorage", { getItem: (k: string) => m.get(k) ?? null, setItem: (k: string, v: string) => { m.set(k, v); }, removeItem: (k: string) => { m.delete(k); } });
+    const demo = stockageNavigateur("njangi.demo:");
+    demo.ecrire("njangi.vue.moi", "demo");
+    expect([...m.keys()]).toEqual(["njangi.demo:njangi.vue.moi"]);
+    expect(stockageNavigateur().lire("njangi.vue.moi")).toBeNull();
+    vi.unstubAllGlobals();
   });
 });
