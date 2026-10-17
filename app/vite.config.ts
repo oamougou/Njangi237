@@ -26,7 +26,7 @@ export default defineConfig({
       },
       // La v1 (dans public/v1) a son propre service worker : ni précache, ni page de repli de la v2 pour /v1/
       workbox: { globPatterns: ["**/*.{js,css,html,png}"], globIgnores: ["v1/**"], navigateFallback: "index.html",
-        navigateFallbackDenylist: [/\/v1\//] },
+        navigateFallbackDenylist: [/^\/v1(\/|$)/] },
     }),
   ],
   build: { target: "es2020" },
