@@ -71,7 +71,7 @@ h3 { font-size: 18px; }
 .ok { background: var(--ok-soft); color: var(--brand-dark); padding: 10px 14px; border-radius: var(--r-petit); margin: 0; }
 .note { color: var(--ink-soft); font-size: 13px; margin: 0; }
 .note.clair { color: var(--paper); opacity: .85; }
-.alerte.flottante { position: sticky; bottom: 12px; z-index: 20; box-shadow: 0 4px 14px rgba(0,0,0,.15); }
+.alerte.flottante, .ok.flottante { position: sticky; bottom: 12px; z-index: 20; box-shadow: 0 4px 14px rgba(0,0,0,.15); }
 
 /* Listes, groupes, avatars */
 .liste { list-style: none; padding: 0; margin: 0; }

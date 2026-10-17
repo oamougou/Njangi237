@@ -123,4 +123,16 @@ describe("onglet Tours", () => {
     expect(screen.queryByRole("button", { name: /^Monter/ })).toBeNull();
     expect(ordre()[1]).toContain("Alice");
   });
+
+  it("téléphone : le formulaire de remise et le remplacement s'ouvrent dans la carte du bénéficiaire, le succès est annoncé", async () => {
+    const api = fauxApi();
+    render(<OngletTours api={api} vue={vueTest()} recharger={vi.fn()} />);
+    const carte = () => screen.getByRole("button", { name: "Remplacer Tina" }).closest("li")!;
+    await userEvent.click(screen.getByRole("button", { name: "Remettre la cagnotte à Tina" }));
+    expect(within(carte()).getByLabelText("Montant remis (FCFA)")).toBeTruthy();
+    await userEvent.click(within(carte()).getByRole("button", { name: "Enregistrer la remise" }));
+    expect((await screen.findByRole("status")).textContent).toContain("Cagnotte remise à Tina");
+    await userEvent.click(screen.getByRole("button", { name: "Remplacer Tina" }));
+    expect(within(carte()).getByLabelText("Nouveau bénéficiaire")).toBeTruthy();
+  });
 });
