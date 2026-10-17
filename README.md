@@ -52,6 +52,10 @@ Le service worker fonctionne « réseau d'abord » : une nouvelle version arrive
   (MoMo, Orange Money, espèces), dettes, ordre des tours en lecture seule avec date estimée, historique. Temps réel
   (Supabase Realtime) des deux côtés. Hors ligne : dernières données gardées sur le téléphone (localStorage) et
   déclarations du membre mises en file par personne, envoyées au retour du réseau (identifiant unique : jamais de doublon).
+- Tours et journal (lot 5) : onglet Tours des tontines (ordre à la main ou tiré au sort par le serveur, verrouillé à
+  l'ouverture du premier cycle du tour ; échange de deux tours ; remplacement d'un bénéficiaire ; remise de la cagnotte
+  avec montant proposé « collecté ÷ bénéficiaires » et écart ; nouveau tour quand chacun a reçu sa part). Onglet Journal :
+  historique lisible avec l'auteur (`lire_journal`, migration 0008).
 - Supabase Auth : inscriptions publiques fermées (les comptes ne naissent que par invitation ou amorçage), limite « sign-ins » relevée.
 - Spécification et plans : `docs/superpowers/`.
 
