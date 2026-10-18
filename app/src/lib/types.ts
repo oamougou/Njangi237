@@ -13,7 +13,8 @@ export interface NouveauGroupe {
   frequence: Frequence; beneficiaires: number;
   tresorier_nom: string; tresorier_telephone: string;
 }
-export interface LienEnvoye { lien: string; whatsapp: string; expire: string; nom: string }
+/** `demo` : lien fictif du mode démo (rien n'est envoyé, pas de bouton WhatsApp). */
+export interface LienEnvoye { lien: string; whatsapp: string; expire: string; nom: string; demo?: boolean }
 export type Frequence = "hebdomadaire" | "mensuelle" | "ponctuelle";
 export type MoyenPaiement = "mtn_momo" | "orange_money" | "especes" | "autre";
 export interface Groupe {
