@@ -17,4 +17,7 @@ describe("routes", () => {
     expect(lireRoute("#/groupe/abc-123/inconnu")).toEqual({ nom: "groupe", id: "abc-123", onglet: "cycle" });
     for (const h of ["", "#", "#/", "#/invitation", "#/inconnu"]) expect(lireRoute(h)).toEqual({ nom: "accueil" });
   });
+  it("onglet Abonnement", () => {
+    expect(lireRoute("#/groupe/abc-123/abonnement")).toEqual({ nom: "groupe", id: "abc-123", onglet: "abonnement" });
+  });
 });

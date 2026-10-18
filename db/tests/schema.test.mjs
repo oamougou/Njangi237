@@ -14,8 +14,8 @@ const cycle = (id = C1, status = "ouvert") => su(db,
 test("les migrations créent toutes les tables", async () => {
   const { rows } = await db.query(
     "select table_name from information_schema.tables where table_schema = 'public' and table_type = 'BASE TABLE' order by 1");
-  assert.deepEqual(rows.map((r) => r.table_name), ["cycles", "debts", "groups", "invitations", "journal",
-    "login_attempts", "memberships", "payments", "payouts", "people", "platform_admins"]);
+  assert.deepEqual(rows.map((r) => r.table_name), ["abonnements", "abonnements_groupes", "cycles", "debts", "demandes_abonnement", "groups", "invitations", "journal",
+    "login_attempts", "memberships", "parametres_plateforme", "payments", "payouts", "people", "platform_admins"]);
 });
 
 test("un numéro mal formé est refusé", () => scenario(db, async () => {

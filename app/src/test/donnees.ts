@@ -1,4 +1,4 @@
-import type { VueGroupe, VueMembre } from "../lib/types";
+import type { EtatAbonnement, VueAdminAbonnements, VueGroupe, VueMembre } from "../lib/types";
 
 /** Tontine de 4 membres (Tina trésorière), cycle d'octobre ouvert : Tina a payé, Alice a déclaré, Bob et Ines sont en retard. */
 export function vueTest(): VueGroupe {
@@ -45,5 +45,25 @@ export function vueMembreTest(): VueMembre {
       { membership_id: "m-alice", display_name: "Alice", role: "membre", status: "actif", position: 4, is_me: true, servi: false, prevu: false },
     ],
     recouvrement: [{ cycle_id: "c-oct", membres: 4, attendu: 20000, payes: 1, collecte: 5000 }],
+  };
+}
+
+/** Tontine des amis en essai, 4 membres sur 50, sans demande. */
+export function etatAbonnementTest(): EtatAbonnement {
+  return { offre: "essai", limite: 50, fin: "2026-11-10T10:00:00Z", membres: 4, prix_lancement: false, demande: null, historique: [],
+    paiement: { mtn: "677000001", orange: "699000001", beneficiaire: "Olivier A." } };
+}
+
+/** Une demande en attente (Tontine des amis, offre Groupe 1 mois) et deux groupes. */
+export function adminAbonnementsTest(): VueAdminAbonnements {
+  return {
+    demandes: [{ id: "d1", group_id: "g1", groupe: "Tontine des amis", demandeur: "Tina", offre: "groupe", duree_mois: 1, montant: 2000,
+      devise: "XAF", moyen: "mtn_momo", reference: "MP77", precisions: null, statut: "en_attente", motif: null,
+      created_at: "2026-10-18T09:00:00Z", traitee_le: null }],
+    groupes: [
+      { group_id: "g1", nom: "Tontine des amis", offre: "essai", fin: "2026-11-10T10:00:00Z", limite: 50, membres: 4, prix_lancement: false },
+      { group_id: "g2", nom: "LE BON WEEKEND", offre: "pilote", fin: "2027-01-31T23:00:00Z", limite: 50, membres: 14, prix_lancement: true },
+    ],
+    lancements: 1, paiement: { mtn: "677000001", orange: null, beneficiaire: "Olivier A." },
   };
 }
