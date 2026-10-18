@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Groupe } from "./Groupe";
@@ -84,5 +84,15 @@ describe("espace du groupe", () => {
     expect(await screen.findByText(/l'offre Découverte en permet 10/)).toBeTruthy();
     expect(screen.getByRole("link", { name: "Voir l'abonnement" }).getAttribute("href")).toBe("#/groupe/g1/abonnement");
     expect(screen.getByRole("link", { name: "Abonnement" })).toBeTruthy();
+  });
+  it("l'offre est relue quand un membre est retiré (même nombre de lignes, bandeau à jour)", async () => {
+    const api = fauxApi();
+    render(<Groupe api={api} id="g1" onglet="cycle" personId="u-tina" stockage={stockageMemoire()} />);
+    await screen.findByText("Octobre 2026");
+    await vi.waitFor(() => expect(api.etatAbonnement).toHaveBeenCalledTimes(1));
+    const v = vueTest();
+    api.chargerGroupe.mockResolvedValueOnce({ ...v, membres: v.membres.map((m) => (m.id === "m-bob" ? { ...m, status: "retire" as const } : m)) });
+    await userEvent.click(screen.getByRole("button", { name: "Actualiser" }));
+    await vi.waitFor(() => expect(api.etatAbonnement).toHaveBeenCalledTimes(2));
   });
 });
