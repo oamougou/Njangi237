@@ -1,5 +1,6 @@
+import { finAffichee, LIBELLE_OFFRE, montantTexte } from "./abonnement";
 import { de, fcfa } from "./format";
-import type { EntreeJournal } from "./types";
+import type { Devise, EntreeJournal, Offre } from "./types";
 
 const ROLE: Record<string, string> = { tresorier: "trésorier", membre: "membre" };
 
@@ -27,6 +28,11 @@ export function libelleJournal(e: EntreeJournal): string {
     case "tours_echanges": return `Tours échangés entre ${s("a")} et ${s("b")}`;
     case "cagnotte_remise": return `Cagnotte remise à ${s("nom")} : ${fcfa(n("montant"))}`;
     case "nouveau_tour": return `Nouveau tour (tour ${n("tour")})`;
+    case "abonnement_demande": return `Demande d'abonnement ${LIBELLE_OFFRE[s("offre") as Offre] ?? s("offre")} (${n("duree")} mois, ${montantTexte(n("montant"), s("devise") as Devise)})`;
+    case "abonnement_accepte": return `Abonnement ${LIBELLE_OFFRE[s("offre") as Offre] ?? s("offre")} activé jusqu'au ${finAffichee(s("fin"))}`;
+    case "abonnement_refuse": return `Demande d'abonnement refusée : ${s("motif")}`;
+    case "abonnement_annule": return "Demande d'abonnement annulée";
+    case "pilote_attribue": return `Offre Pilote jusqu'au ${finAffichee(s("fin"))}`;
     default: return e.action.replace(/_/g, " ");
   }
 }

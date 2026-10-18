@@ -23,4 +23,13 @@ describe("libellés du journal", () => {
     expect(libelleJournal(e("action_future", {}))).toBe("action future");
     expect(libelleJournal(e("tirage_au_sort", {}))).toBe("Tirage au sort de l'ordre : ");
   });
+  it("abonnements : demande, acceptation, refus, Pilote", () => {
+    const e = (action: string, details: Record<string, unknown>) => ({ id: 1, action, details, created_at: "2026-10-18T10:00:00Z", auteur: "Tina", visible: false });
+    expect(libelleJournal(e("abonnement_demande", { offre: "groupe", duree: 12, montant: 20000, devise: "XAF" })))
+      .toBe("Demande d'abonnement Groupe (12 mois, 20 000 FCFA)");
+    expect(libelleJournal(e("abonnement_accepte", { offre: "groupe", fin: "2027-10-18T10:00:00Z" }))).toBe("Abonnement Groupe activé jusqu'au 18/10/2027");
+    expect(libelleJournal(e("abonnement_refuse", { offre: "groupe", motif: "Référence introuvable" }))).toBe("Demande d'abonnement refusée : Référence introuvable");
+    expect(libelleJournal(e("abonnement_annule", { offre: "groupe" }))).toBe("Demande d'abonnement annulée");
+    expect(libelleJournal(e("pilote_attribue", { fin: "2027-01-31T23:00:00Z" }))).toBe("Offre Pilote jusqu'au 31/01/2027");
+  });
 });

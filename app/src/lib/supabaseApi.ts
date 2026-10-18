@@ -4,7 +4,7 @@ import { lienApp, lienWhatsApp, messageWhatsApp, type TypeLien } from "./liens";
 import { normaliserTelephone } from "./telephone";
 import { ErreurReseau, versErreur } from "./erreurs";
 import { resumerGroupe } from "./resume";
-import type { Api, ApercuRetrait, Declaration, EntreeJournal, LienEnvoye, MonGroupe, Personne, VueGroupe, VueMembre } from "./types";
+import type { Api, ApercuRetrait, Declaration, EntreeJournal, EtatAbonnement, LienEnvoye, MonGroupe, Personne, VueAdminAbonnements, VueGroupe, VueMembre } from "./types";
 
 type SessionServeur = { session: { access_token: string; refresh_token: string } };
 
@@ -206,6 +206,21 @@ export function createSupabaseApi(url: string, key: string): Api {
       const lignes = must(await sb.rpc("lire_journal", { p_group: groupId, p_avant: avant ?? null, p_limite: 50 })) as
         (Omit<EntreeJournal, "id"> & { id: number | string })[];
       return lignes.map((e) => ({ ...e, id: Number(e.id) }));   // bigint : PostgREST peut le renvoyer en texte
+    },
+    etatAbonnement: async (groupId) => must(await sb.rpc("mon_abonnement", { p_group: groupId })) as EtatAbonnement,
+    async demanderAbonnement(d) {
+      must(await sb.rpc("demander_abonnement", { p_group: d.groupId, p_offre: d.offre, p_duree: d.dureeMois, p_moyen: d.moyen,
+        p_reference: d.reference, p_precisions: d.precisions }));
+    },
+    async annulerDemande(id) { must(await sb.rpc("annuler_demande", { p_demande: id })); },
+    adminAbonnements: async () => must(await sb.rpc("admin_abonnements")) as VueAdminAbonnements,
+    async accepterDemande(id, autres) { must(await sb.rpc("accepter_demande", { p_demande: id, p_autres: autres ?? [] })); },
+    async refuserDemande(id, motif) { must(await sb.rpc("refuser_demande", { p_demande: id, p_motif: motif })); },
+    async attribuerPilote(groupId, fin) { must(await sb.rpc("attribuer_pilote", { p_group: groupId, p_fin: fin })); },
+    async creerAssociation(groupIds, dureeMois) { must(await sb.rpc("creer_association", { p_groupes: groupIds, p_duree: dureeMois })); },
+    async changerPrixLancement(groupId, actif) { must(await sb.rpc("changer_prix_lancement", { p_group: groupId, p_actif: actif })); },
+    async reglerPaiement(mtn, orange, beneficiaire) {
+      must(await sb.rpc("regler_paiement", { p_mtn: mtn, p_orange: orange, p_beneficiaire: beneficiaire }));
     },
   };
   return api;
