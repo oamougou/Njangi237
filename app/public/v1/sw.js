@@ -1,6 +1,7 @@
 // Réseau d'abord (les mises à jour arrivent dès qu'il y a du réseau),
 // cache en secours pour fonctionner hors ligne. Changer CACHE à chaque version.
-const CACHE = "njangi237-v2";
+// Servi sous /v1/ depuis la bascule : ne jamais effacer les caches de la v2 (même origine)
+const CACHE = "njangi237-v1";
 const ASSETS = ["./", "./index.html", "./manifest.json", "./icon-192.png", "./icon-512.png"];
 
 self.addEventListener("install", (e) => {
@@ -11,7 +12,7 @@ self.addEventListener("install", (e) => {
 self.addEventListener("activate", (e) => {
   e.waitUntil(
     caches.keys().then((keys) =>
-      Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k)))
+      Promise.all(keys.filter((k) => k.startsWith("njangi237-") && k !== CACHE).map((k) => caches.delete(k)))
     )
   );
   self.clients.claim();
