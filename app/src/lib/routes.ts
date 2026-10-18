@@ -1,10 +1,10 @@
-export type OngletGroupe = "cycle" | "membres" | "tours" | "journal";
+export type OngletGroupe = "cycle" | "membres" | "tours" | "journal" | "abonnement";
 export type Route =
   | { nom: "accueil" } | { nom: "profil" } | { nom: "admin" } | { nom: "amorcer" }
   | { nom: "invitation" | "nouveau-pin"; jeton: string }
   | { nom: "groupe"; id: string; onglet: OngletGroupe };
 
-const ONGLETS: OngletGroupe[] = ["membres", "tours", "journal"];
+const ONGLETS: OngletGroupe[] = ["membres", "tours", "journal", "abonnement"];
 
 /** « #/invitation/<jeton> » → { nom: "invitation", jeton } ; tout le reste retombe sur l'accueil. */
 export function lireRoute(hash: string): Route {

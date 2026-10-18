@@ -3,7 +3,7 @@ import { lienApp, type TypeLien } from "../liens";
 import type { Api, LienEnvoye } from "../types";
 import * as cycles from "./cycles";
 import { ALICE, etatDemo, TINA } from "./donnees";
-import { estTresorier, refus, VERSION_DEMO, type Ctx, type EtatDemo } from "./etat";
+import { comptes, estTresorier, refus, VERSION_DEMO, type Ctx, type EtatDemo } from "./etat";
 import * as membres from "./membres";
 import type { ProfilDemo } from "./modeDemo";
 import * as paiements from "./paiements";
@@ -93,6 +93,12 @@ export function createDemoApi(o: OptionsDemo): DemoApi {
     enregistrerRemise: (remiseId, montant, moyen, reference) => agir((e, c) => tours.enregistrerRemise(e, c, remiseId, montant, moyen, reference)),
     nouveauTour: (groupId) => agir((e, c) => tours.nouveauTour(e, c, groupId)),
     lireJournal: (groupId, avant) => voir((e, a) => vues.lireJournal(e, a, groupId, avant)),
+    // Abonnements : la démo n'est pas bridée ; l'onglet est en lecture seule
+    etatAbonnement: (groupId) => voir((e) => ({ offre: "groupe" as const, limite: 50, fin: null, membres: comptes(e, groupId).length,
+      prix_lancement: false, demande: null, historique: [], paiement: { mtn: null, orange: null, beneficiaire: null }, demo: true })),
+    demanderAbonnement: indisponible, annulerDemande: indisponible, adminAbonnements: indisponible, accepterDemande: indisponible,
+    refuserDemande: indisponible, attribuerPilote: indisponible, creerAssociation: indisponible, changerPrixLancement: indisponible,
+    reglerPaiement: indisponible,
     reinitialiser() { o.stockage.supprimer(CLE_ETAT); prevenir(); },
   };
 }

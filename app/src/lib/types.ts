@@ -67,6 +67,27 @@ export interface ResumeGroupe {
   monEtat: "paye" | "en_attente" | "conteste" | "a_payer" | "hors" | null; aValider: number;
 }
 
+export type Offre = "decouverte" | "essai" | "groupe" | "association" | "diaspora" | "pilote";
+export type OffrePayante = "groupe" | "association" | "diaspora";
+export type Devise = "XAF" | "EUR";
+export interface DemandeAbonnement {
+  id: string; offre: OffrePayante; duree_mois: 1 | 12; montant: number; devise: Devise; moyen: MoyenPaiement;
+  reference: string | null; precisions: string | null; statut: "en_attente" | "acceptee" | "refusee" | "annulee";
+  motif: string | null; created_at: string; traitee_le: string | null;
+}
+export interface PaiementPlateforme { mtn: string | null; orange: string | null; beneficiaire: string | null }
+export interface EtatAbonnement {
+  offre: Offre; limite: number; fin: string | null; membres: number; prix_lancement: boolean;
+  demande: DemandeAbonnement | null; historique: { offre: Offre; debut: string; fin: string }[];
+  paiement: PaiementPlateforme; demo?: boolean;
+}
+export interface NouvelleDemande {
+  groupId: string; offre: OffrePayante; dureeMois: 1 | 12; moyen: MoyenPaiement; reference: string | null; precisions: string | null;
+}
+export interface DemandeAdmin extends DemandeAbonnement { group_id: string; groupe: string; demandeur: string | null }
+export interface GroupeAdmin { group_id: string; nom: string; offre: Offre; fin: string | null; limite: number; membres: number; prix_lancement: boolean }
+export interface VueAdminAbonnements { demandes: DemandeAdmin[]; groupes: GroupeAdmin[]; lancements: number; paiement: PaiementPlateforme }
+
 /** Contrat unique de l'application (le mode démo du lot 6 l'implémentera aussi). */
 export interface Api {
   session(): Promise<Personne | null>;
@@ -110,4 +131,19 @@ export interface Api {
   nouveauTour(groupId: string): Promise<number>;
   /** 50 entrées au plus, de la plus récente à la plus ancienne ; `avant` = identifiant de la dernière entrée déjà affichée. */
   lireJournal(groupId: string, avant?: number): Promise<EntreeJournal[]>;
+  // Abonnements (lot 7)
+  /** Trésorier du groupe : offre en vigueur, limite, demande en cours, historique et numéros de paiement. */
+  etatAbonnement(groupId: string): Promise<EtatAbonnement>;
+  demanderAbonnement(d: NouvelleDemande): Promise<void>;
+  annulerDemande(demandeId: string): Promise<void>;
+  /** Administrateur de la plateforme. */
+  adminAbonnements(): Promise<VueAdminAbonnements>;
+  /** `autres` : groupes supplémentaires d'une offre Association (4 au plus). */
+  accepterDemande(demandeId: string, autres?: string[]): Promise<void>;
+  refuserDemande(demandeId: string, motif: string): Promise<void>;
+  /** `fin` : dernier jour inclus, AAAA-MM-JJ. */
+  attribuerPilote(groupId: string, fin: string): Promise<void>;
+  creerAssociation(groupIds: string[], dureeMois: 1 | 12): Promise<void>;
+  changerPrixLancement(groupId: string, actif: boolean): Promise<void>;
+  reglerPaiement(mtn: string, orange: string, beneficiaire: string): Promise<void>;
 }

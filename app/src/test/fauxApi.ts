@@ -1,6 +1,6 @@
 import { vi } from "vitest";
 import type { Api, EntreeJournal, VueGroupe } from "../lib/types";
-import { vueMembreTest, vueTest } from "./donnees";
+import { adminAbonnementsTest, etatAbonnementTest, vueMembreTest, vueTest } from "./donnees";
 
 /** Fausse Api : chaque méthode est un vi.fn() qui réussit ; chargerGroupe renvoie la vue fournie. */
 export function fauxApi(vue: VueGroupe = vueTest()) {
@@ -25,6 +25,11 @@ export function fauxApi(vue: VueGroupe = vueTest()) {
     enregistrerRemise: vi.fn(async () => ({ ecart: 0 })),
     nouveauTour: vi.fn(async () => 2),
     lireJournal: vi.fn(async () => [] as EntreeJournal[]),
+    etatAbonnement: vi.fn(async () => etatAbonnementTest()),
+    demanderAbonnement: vi.fn(async () => {}), annulerDemande: vi.fn(async () => {}),
+    adminAbonnements: vi.fn(async () => adminAbonnementsTest()),
+    accepterDemande: vi.fn(async () => {}), refuserDemande: vi.fn(async () => {}), attribuerPilote: vi.fn(async () => {}),
+    creerAssociation: vi.fn(async () => {}), changerPrixLancement: vi.fn(async () => {}), reglerPaiement: vi.fn(async () => {}),
   } satisfies Api;
   return api;
 }

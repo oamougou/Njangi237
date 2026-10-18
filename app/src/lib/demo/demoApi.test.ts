@@ -88,4 +88,11 @@ describe("demoApi", () => {
     await api.quitter();
     expect(o.quitter).toHaveBeenCalled();
   });
+  it("abonnement en démo : offre Groupe, sans limite à payer, en lecture seule", async () => {
+    const api = createDemoApi(options());
+    const g = await tontine(api);
+    expect(await api.etatAbonnement(g)).toMatchObject({ offre: "groupe", limite: 50, membres: 12, demo: true });
+    await expect(api.demanderAbonnement({ groupId: g, offre: "groupe", dureeMois: 1, moyen: "mtn_momo", reference: "x", precisions: null }))
+      .rejects.toThrow(INDISPONIBLE);
+  });
 });
