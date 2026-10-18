@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { Api, LienEnvoye, NouveauGroupe } from "../lib/types";
 import { Champ } from "./Champ";
+import { AdminAbonnements } from "./AdminAbonnements";
 import { Lien } from "./Lien";
 
 const VIDE: NouveauGroupe = { nom: "", type: "tontine", montant: 0, frequence: "mensuelle", beneficiaires: 1, tresorier_nom: "", tresorier_telephone: "" };
@@ -41,6 +42,7 @@ export function Admin({ api }: { api: Api }) {
         {err && <p className="alerte">{err}</p>}
         <button className="btn principal" disabled={busy || !g.nom.trim() || g.montant <= 0}>Créer le groupe</button>
       </form>
+      <AdminAbonnements api={api} />
     </section>
   );
 }

@@ -142,3 +142,7 @@ fieldset.sans-cadre { border: 0; padding: 0; margin: 0; min-width: 0; }
 .tableau-offres { width: 100%; border-collapse: collapse; font-size: 14px; }
 .tableau-offres th, .tableau-offres td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--line); vertical-align: top; }
 .tableau-offres td:not(:first-child), .tableau-offres th:not(:first-child) { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.demande { border-top: 1px solid var(--line); padding-top: 10px; display: grid; gap: 8px; }
+.demande:first-of-type { border-top: 0; padding-top: 0; }
+.case { display: flex; gap: 8px; align-items: center; font-size: 14px; padding: 4px 0; }
+.defile { overflow-x: auto; }
