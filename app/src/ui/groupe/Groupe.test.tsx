@@ -4,7 +4,7 @@ import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Groupe } from "./Groupe";
 import { fauxApi } from "../../test/fauxApi";
-import { vueTest } from "../../test/donnees";
+import { etatAbonnementTest, vueTest } from "../../test/donnees";
 import { memoriser, stockageMemoire } from "../../lib/horsLigne";
 import { ErreurReseau } from "../../lib/erreurs";
 
@@ -76,5 +76,13 @@ describe("espace du groupe", () => {
     cleanup();
     render(<Groupe api={api} id="g1" onglet="journal" personId="u-tina" stockage={stockage} />);
     expect(await screen.findByText("Aucune action enregistrée pour l'instant.")).toBeTruthy();
+  });
+  it("bandeau de blocage visible sur l'onglet Cycle, avec un lien vers l'abonnement", async () => {
+    const api = fauxApi();
+    api.etatAbonnement.mockResolvedValue({ ...etatAbonnementTest(), offre: "decouverte", limite: 10, fin: null, membres: 12 });
+    render(<Groupe api={api} id="g1" onglet="cycle" personId="u-tina" stockage={stockageMemoire()} />);
+    expect(await screen.findByText(/l'offre Découverte en permet 10/)).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Voir l'abonnement" }).getAttribute("href")).toBe("#/groupe/g1/abonnement");
+    expect(screen.getByRole("link", { name: "Abonnement" })).toBeTruthy();
   });
 });
