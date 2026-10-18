@@ -8,10 +8,12 @@ const q = async (sql) => (await db.query(sql)).rows;
 
 /** Seules fonctions appelables par l'application (rôle authenticated). */
 export const ALLOWED = [
-  "ajouter_membre", "apercu_retrait", "changer_role", "clore_cycle", "contester_paiement", "creer_groupe",
-  "declarer_paiement", "echanger_tours", "enregistrer_remise", "inviter", "is_member", "is_platform_admin", "is_treasurer",
-  "lire_journal", "nouveau_tour", "ordonner_tours", "ordre_tours", "ouvrir_cycle", "recouvrement", "remplacer_beneficiaire",
-  "retirer_membre", "rouvrir_cycle", "saisir_especes", "tirer_au_sort", "valider_paiement",
+  "accepter_demande", "admin_abonnements", "ajouter_membre", "annuler_demande", "apercu_retrait", "attribuer_pilote",
+  "changer_prix_lancement", "changer_role", "clore_cycle", "contester_paiement", "creer_association", "creer_groupe",
+  "declarer_paiement", "demander_abonnement", "echanger_tours", "enregistrer_remise", "inviter", "is_member",
+  "is_platform_admin", "is_treasurer", "lire_journal", "mon_abonnement", "nouveau_tour", "ordonner_tours", "ordre_tours",
+  "ouvrir_cycle", "recouvrement", "refuser_demande", "regler_paiement", "remplacer_beneficiaire", "retirer_membre",
+  "rouvrir_cycle", "saisir_especes", "tirer_au_sort", "valider_paiement",
 ];
 
 const executable = (role) => q(`
