@@ -29,7 +29,8 @@ export function Groupe({ api, id, onglet, personId, stockage }: {
   // Offre du groupe (trésorier) : bandeau de blocage ou de fin proche sur tous les onglets
   const [abo, setAbo] = useState<EtatAbonnement | null>(null);
   const role = brute?.role;
-  const nbMembres = brute?.membres.length ?? 0;
+  // Membres comptés (sans les retirés), comme pour la limite : un retrait doit rafraîchir le bandeau
+  const nbMembres = brute?.membres.filter((m) => m.status !== "retire").length ?? 0;
   useEffect(() => {
     if (role !== "tresorier") return;
     api.etatAbonnement(id).then(setAbo).catch(() => setAbo(null));
